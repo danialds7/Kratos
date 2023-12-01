@@ -36,6 +36,8 @@ ParallelFillCommunicator::ParallelFillCommunicator(
     KRATOS_ERROR_IF_NOT(rDataCommunicator.IsDistributed()) << "Trying to create an ParallelFillCommunicator with a non-distributed DataCommunicator!" << std::endl;
 }
 
+ParallelFillCommunicator::~ParallelFillCommunicator() = default;
+
 void ParallelFillCommunicator::Execute()
 {
     KRATOS_TRY
@@ -340,7 +342,7 @@ void ParallelFillCommunicator::InitializeParallelCommunicationMeshes(
     // For each color fill the list of ghost and local nodes and the
     // interface
     // mesh.
-    for (unsigned color = 0; color < rColors.size(); ++color)
+    for (unsigned int color = 0; color < rColors.size(); ++color)
     {
         rModelPart.GetCommunicator().NeighbourIndices()[color] = rColors[color];
         GenerateMeshes(rColors[color], MyRank, color, rModelPart);
@@ -402,12 +404,7 @@ void ParallelFillCommunicator::InitializeParallelCommunicationMeshes(
     KRATOS_CATCH("");
 }
 
-void ParallelFillCommunicator::GenerateMeshes(
-    const int NeighbourPID, 
-    const int MyPID, 
-    const unsigned int Color, 
-    ModelPart& rModelPart
-    )
+void ParallelFillCommunicator::GenerateMeshes(int NeighbourPID, int MyPID, unsigned int Color, ModelPart& rModelPart    )
 {
     KRATOS_TRY;
 

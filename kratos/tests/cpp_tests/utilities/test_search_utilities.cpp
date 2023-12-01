@@ -40,7 +40,7 @@ KRATOS_TEST_CASE_IN_SUITE(SearchUtilitiesPointIsInsideBoundingBox, KratosCoreFas
     KRATOS_EXPECT_TRUE(SearchUtilities::PointIsInsideBoundingBox(bounding_box, p_in));
 }
 
-double GetBBoxValue(const int Index, const double Factor, const double Offset)
+double GetBBoxValue(int Index, double Factor, double Offset)
 {
     return static_cast<double>(Index)*Factor - Offset;
 }
@@ -115,7 +115,7 @@ KRATOS_TEST_CASE_IN_SUITE(SynchronousPointSynchronization, KratosCoreFastSuite)
 
     // Call the function
     std::vector<double> all_points_coordinates;
-    std::vector<long unsigned int> all_points_ids;
+    std::vector<unsigned long> all_points_ids;
     SearchUtilities::SynchronousPointSynchronization(points.begin(), points.end(), all_points_coordinates, all_points_ids, r_data_comm);
 
     // Check the results

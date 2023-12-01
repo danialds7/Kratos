@@ -83,7 +83,7 @@ public:
         );
 
     /// Destructor.
-    virtual ~ParallelFillCommunicator() = default;
+    ~ParallelFillCommunicator() override;
 
     ///@}
     ///@name Operators
@@ -163,9 +163,9 @@ protected:
 
     /// Generate the ghost, local and interface meshes for processes of a communication pair (color).
     void GenerateMeshes(
-        const int NeighbourPID, 
-        const int MyPID, 
-        const unsigned int Color, 
+         int NeighbourPID, 
+         int MyPID, 
+         unsigned int Color, 
         ModelPart& rModelPart
         );
 
