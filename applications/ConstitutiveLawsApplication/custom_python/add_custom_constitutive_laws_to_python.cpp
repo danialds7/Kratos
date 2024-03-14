@@ -105,6 +105,8 @@
 #include "custom_constitutive/composites/traction_separation_law.h"
 
 #include "custom_constitutive/small_strains/plastic_damage/associative_plastic_damage_model.h"
+#include "custom_constitutive/small_strains/damage/trial_cl.h"
+
 
 // Thermal CL's
 #include "custom_constitutive/thermal/small_strains/elastic/thermal_elastic_isotropic_3d.h"
@@ -137,6 +139,9 @@ void AddCustomConstitutiveLawsToPython(pybind11::module& m)
     (m, "WrinklingLinear2DLaw").def(py::init<>() )
     ;
 
+    py::class_< TrialCl, typename TrialCl::Pointer, ConstitutiveLaw >
+    (m, "TrialCl").def(py::init<>() )
+    ;
     py::class_< TrussPlasticityConstitutiveLaw, typename TrussPlasticityConstitutiveLaw::Pointer, ConstitutiveLaw >
     (m, "TrussPlasticityConstitutiveLaw").def(py::init<>() )
     ;

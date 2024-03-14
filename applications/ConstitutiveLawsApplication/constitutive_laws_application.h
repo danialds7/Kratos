@@ -113,6 +113,7 @@
 #include "custom_constitutive/composites/traction_separation_law.h"
 
 #include "custom_constitutive/small_strains/plastic_damage/associative_plastic_damage_model.h"
+#include "custom_constitutive/small_strains/damage/trial_cl.h"
 
 // Thermal CL
 #include "custom_constitutive/thermal/small_strains/elastic/thermal_elastic_isotropic_3d.h"
@@ -298,6 +299,8 @@ private:
     const WrinklingLinear2DLaw mWrinklingLinear2DLaw;
     const MultiLinearElastic1DLaw mMultiLinearElastic1DLaw;
     const MultiLinearIsotropicPlaneStress2D mMultiLinearIsotropicPlaneStress2D;
+//    const TrialCl mTrialCl;
+
 
     // Damage and plasticity laws
     const SerialParallelRuleOfMixturesLaw mSerialParallelRuleOfMixturesLaw;
@@ -624,6 +627,7 @@ private:
 
     // Anisotropic law
     const GenericAnisotropic3DLaw mGenericAnisotropic3DLaw;
+    const TrialCl mTrialCl;
 
     const AssociativePlasticDamageModel <VonMisesYieldSurface<VonMisesPlasticPotential<6>>> mAssociativePlasticDamageModel3DVonMises;
     const AssociativePlasticDamageModel <DruckerPragerYieldSurface<DruckerPragerPlasticPotential<6>>> mAssociativePlasticDamageModel3DDruckerPrager;

@@ -401,7 +401,6 @@ void ConstitutiveLawUtilities<TVoigtSize>::CalculateCauchyGreenStrain(
         for(unsigned int i = 0; i < space_dimension; ++i)
             E_tensor(i,i) -= 1.0;
         E_tensor *= 0.5;
-
         noalias(rStrainVector) = MathUtils<double>::StrainTensorToVector(E_tensor);
     }
 
