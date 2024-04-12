@@ -114,6 +114,8 @@
 
 #include "custom_constitutive/small_strains/plastic_damage/associative_plastic_damage_model.h"
 #include "custom_constitutive/small_strains/damage/trial_cl.h"
+#include "custom_constitutive/small_strains/damage/damage_cl.h"
+
 
 // Thermal CL
 #include "custom_constitutive/thermal/small_strains/elastic/thermal_elastic_isotropic_3d.h"
@@ -628,6 +630,9 @@ private:
     // Anisotropic law
     const GenericAnisotropic3DLaw mGenericAnisotropic3DLaw;
     const TrialCl mTrialCl;
+    const DamageCl mDamageCl;
+
+    
 
     const AssociativePlasticDamageModel <VonMisesYieldSurface<VonMisesPlasticPotential<6>>> mAssociativePlasticDamageModel3DVonMises;
     const AssociativePlasticDamageModel <DruckerPragerYieldSurface<DruckerPragerPlasticPotential<6>>> mAssociativePlasticDamageModel3DDruckerPrager;

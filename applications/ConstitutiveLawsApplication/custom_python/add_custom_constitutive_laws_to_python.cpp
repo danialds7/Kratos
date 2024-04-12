@@ -106,6 +106,7 @@
 
 #include "custom_constitutive/small_strains/plastic_damage/associative_plastic_damage_model.h"
 #include "custom_constitutive/small_strains/damage/trial_cl.h"
+#include "custom_constitutive/small_strains/damage/damage_cl.h"
 
 
 // Thermal CL's
@@ -142,6 +143,11 @@ void AddCustomConstitutiveLawsToPython(pybind11::module& m)
     py::class_< TrialCl, typename TrialCl::Pointer, ConstitutiveLaw >
     (m, "TrialCl").def(py::init<>() )
     ;
+
+    py::class_< DamageCl, typename DamageCl::Pointer, ConstitutiveLaw >
+    (m, "DamageCl").def(py::init<>() )
+    ;
+
     py::class_< TrussPlasticityConstitutiveLaw, typename TrussPlasticityConstitutiveLaw::Pointer, ConstitutiveLaw >
     (m, "TrussPlasticityConstitutiveLaw").def(py::init<>() )
     ;
