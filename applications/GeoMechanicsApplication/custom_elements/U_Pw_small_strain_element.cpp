@@ -1025,24 +1025,11 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAll(MatrixType&        rLe
     const bool          hasBiotCoefficient = rProp.Has(BIOT_COEFFICIENT);
     std::vector<double> biot_coefficients;
     for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
-        // Compute GradNpT, B and StrainVector
         this->CalculateKinematics(Variables, GPoint);
-
-        // Compute infinitesimal strain
         this->CalculateStrain(Variables, GPoint);
-
-        // Set Gauss points variables to constitutive law parameters
         this->SetConstitutiveParameters(Variables, ConstitutiveParameters);
-
-        // Compute Nu and BodyAcceleration
-        GeoElementUtilities::CalculateNuMatrix<TDim, TNumNodes>(Variables.Nu, Variables.NContainer, GPoint);
-        GeoElementUtilities::InterpolateVariableWithComponents<TDim, TNumNodes>(
-            Variables.BodyAcceleration, Variables.NContainer, Variables.VolumeAcceleration, GPoint);
-
-        // Compute constitutive tensor and stresses
         ConstitutiveParameters.SetStressVector(mStressVector[GPoint]);
         mConstitutiveLawVector[GPoint]->CalculateMaterialResponseCauchy(ConstitutiveParameters);
-
         biot_coefficients.push_back(CalculateBiotCoefficient(Variables.ConstitutiveMatrix, hasBiotCoefficient));
     }
 
@@ -1171,12 +1158,11 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculatePermeabilityUpdateFactor(E
     const PropertiesType& rProp = this->GetProperties();
 
     if (rProp[PERMEABILITY_CHANGE_INVERSE_FACTOR] > 0.0) {
-        const double          InverseCK = rProp[PERMEABILITY_CHANGE_INVERSE_FACTOR];
-        StressStrainUtilities EquivalentStress;
-        const double          epsV      = EquivalentStress.CalculateTrace(rVariables.StrainVector);
-        const double          ePrevious = rProp[POROSITY] / (1.0 - rProp[POROSITY]);
-        const double          eCurrent  = (1.0 + ePrevious) * std::exp(epsV) - 1.0;
-        const double          permLog10 = (eCurrent - ePrevious) * InverseCK;
+        const double InverseCK = rProp[PERMEABILITY_CHANGE_INVERSE_FACTOR];
+        const double epsV      = StressStrainUtilities::CalculateTrace(rVariables.StrainVector);
+        const double ePrevious = rProp[POROSITY] / (1.0 - rProp[POROSITY]);
+        const double eCurrent  = (1.0 + ePrevious) * std::exp(epsV) - 1.0;
+        const double permLog10 = (eCurrent - ePrevious) * InverseCK;
         rVariables.PermeabilityUpdateFactor = pow(10.0, permLog10);
     } else {
         rVariables.PermeabilityUpdateFactor = 1.0;
