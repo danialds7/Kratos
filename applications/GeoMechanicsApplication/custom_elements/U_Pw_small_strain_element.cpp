@@ -1037,10 +1037,14 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAll(MatrixType&        rLe
     for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
         noalias(Variables.Np) = row(Variables.NContainer, GPoint);
 
-        CalculateRetentionResponse(Variables, RetentionParameters, GPoint);
+        RetentionParameters.SetFluidPressure(CalculateFluidPressure(Variables));
+
+        auto degree_of_saturation = mRetentionLawVector[GPoint]->CalculateSaturation(RetentionParameters);
+        auto derivative_of_saturation =
+            mRetentionLawVector[GPoint]->CalculateDerivativeOfSaturation(RetentionParameters);
 
         biot_moduli_inverse.push_back(CalculateInverseBiotModulus(
-            biot_coefficients[GPoint], Variables.DegreeOfSaturation, Variables.DerivativeOfSaturation));
+            biot_coefficients[GPoint], degree_of_saturation, derivative_of_saturation));
     }
 
     for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
