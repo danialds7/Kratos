@@ -1034,7 +1034,26 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAll(MatrixType&        rLe
         // Set Gauss points variables to constitutive law parameters
         this->SetConstitutiveParameters(Variables, ConstitutiveParameters);
 
+        // Compute Nu and BodyAcceleration
+        GeoElementUtilities::CalculateNuMatrix<TDim, TNumNodes>(Variables.Nu, Variables.NContainer, GPoint);
+        GeoElementUtilities::InterpolateVariableWithComponents<TDim, TNumNodes>(
+            Variables.BodyAcceleration, Variables.NContainer, Variables.VolumeAcceleration, GPoint);
+
+        // Compute constitutive tensor and stresses
+        ConstitutiveParameters.SetStressVector(mStressVector[GPoint]);
+        mConstitutiveLawVector[GPoint]->CalculateMaterialResponseCauchy(ConstitutiveParameters);
+
         biot_coefficients.push_back(CalculateBiotCoefficient(Variables.ConstitutiveMatrix, hasBiotCoefficient));
+    }
+
+    std::vector<double> biot_moduli_inverse;
+    for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
+        noalias(Variables.Np) = row(Variables.NContainer, GPoint);
+
+        CalculateRetentionResponse(Variables, RetentionParameters, GPoint);
+
+        biot_moduli_inverse.push_back(CalculateInverseBiotModulus(
+            biot_coefficients[GPoint], Variables.DegreeOfSaturation, Variables.DerivativeOfSaturation));
     }
 
     for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
@@ -1059,6 +1078,10 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAll(MatrixType&        rLe
         CalculateRetentionResponse(Variables, RetentionParameters, GPoint);
 
         this->InitializeBiotCoefficients(Variables, hasBiotCoefficient);
+
+        Variables.BiotCoefficient    = biot_coefficients[GPoint];
+        Variables.BiotModulusInverse = biot_moduli_inverse[GPoint];
+
         this->CalculatePermeabilityUpdateFactor(Variables);
 
         // Compute weighting coefficient for integration
