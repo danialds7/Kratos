@@ -271,6 +271,7 @@ protected:
 
     double CalculateBulkModulus(const Matrix& ConstitutiveMatrix) const;
     double CalculateBiotCoefficient(const Matrix& rConstitutiveMatrix, bool hasBiotCoefficient) const;
+    double CalculateInverseBiotModulus(double BiotCoefficient, double DegreeOfSaturation, double DerivativeOfSaturation) const;
 
     virtual Vector CalculateGreenLagrangeStrain(const Matrix& rDeformationGradient);
     virtual void   CalculateCauchyStrain(ElementVariables& rVariables);
