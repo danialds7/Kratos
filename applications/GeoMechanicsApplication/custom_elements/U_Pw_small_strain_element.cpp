@@ -730,7 +730,8 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateOnIntegrationPoints(const 
             ConstitutiveParameters.SetStressVector(Variables.StressVector);
             mConstitutiveLawVector[GPoint]->CalculateMaterialResponseCauchy(ConstitutiveParameters);
 
-            Variables.BiotCoefficient = CalculateBiotCoefficient(Variables, hasBiotCoefficient);
+            Variables.BiotCoefficient =
+                CalculateBiotCoefficient(Variables.ConstitutiveMatrix, hasBiotCoefficient);
 
             this->CalculateRetentionResponse(Variables, RetentionParameters, GPoint);
 
@@ -1066,7 +1067,7 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAll(MatrixType&        rLe
 }
 
 template <unsigned int TDim, unsigned int TNumNodes>
-double UPwSmallStrainElement<TDim, TNumNodes>::CalculateBiotCoefficient(const ElementVariables& rVariables,
+double UPwSmallStrainElement<TDim, TNumNodes>::CalculateBiotCoefficient(const Matrix& rConstitutiveMatrix,
                                                                         bool hasBiotCoefficient) const
 {
     KRATOS_TRY
@@ -1078,7 +1079,7 @@ double UPwSmallStrainElement<TDim, TNumNodes>::CalculateBiotCoefficient(const El
         return rProp[BIOT_COEFFICIENT];
     } else {
         // Calculate Bulk modulus from stiffness matrix
-        const double BulkModulus = CalculateBulkModulus(rVariables.ConstitutiveMatrix);
+        const double BulkModulus = CalculateBulkModulus(rConstitutiveMatrix);
         return 1.0 - BulkModulus / rProp[BULK_MODULUS_SOLID];
     }
 
@@ -1094,7 +1095,7 @@ void UPwSmallStrainElement<TDim, TNumNodes>::InitializeBiotCoefficients(ElementV
     const PropertiesType& rProp = this->GetProperties();
 
     // Properties variables
-    rVariables.BiotCoefficient = CalculateBiotCoefficient(rVariables, hasBiotCoefficient);
+    rVariables.BiotCoefficient = CalculateBiotCoefficient(rVariables.ConstitutiveMatrix, hasBiotCoefficient);
 
     if (!rProp[IGNORE_UNDRAINED]) {
         rVariables.BiotModulusInverse =
