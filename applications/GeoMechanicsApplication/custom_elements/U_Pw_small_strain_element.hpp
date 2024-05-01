@@ -283,7 +283,7 @@ protected:
     void InitializeNodalVolumeAccelerationVariables(ElementVariables& rVariables);
 
     void   InitializeProperties(ElementVariables& rVariables);
-    double CalculateFluidPressure(const ElementVariables& rVariables);
+    double CalculateFluidPressure(const Vector& rNp, const Vector& rPressureVector);
 
     void CalculateRetentionResponse(ElementVariables&         rVariables,
                                     RetentionLaw::Parameters& rRetentionParameters,
