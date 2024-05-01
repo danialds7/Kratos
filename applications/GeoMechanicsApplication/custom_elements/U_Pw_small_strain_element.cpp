@@ -760,7 +760,7 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateOnIntegrationPoints(const 
             this->CalculateBMatrix(Variables.B, Variables.GradNpTInitialConfiguration, Variables.Np);
 
             // Compute infinitesimal strain
-            this->CalculateCauchyStrain(Variables);
+            Variables.StrainVector = this->CalculateCauchyStrain(Variables.B, Variables.DisplacementVector);
 
             if (rOutput[GPoint].size() != Variables.StrainVector.size())
                 rOutput[GPoint].resize(Variables.StrainVector.size(), false);
@@ -1031,12 +1031,26 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAll(MatrixType&        rLe
         b_matrices.push_back(b_matrix);
     }
 
+    std::vector<Matrix> deformation_gradients;
+    for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
+        this->CalculateDeformationGradient(Variables, GPoint);
+        deformation_gradients.push_back(Variables.F);
+    }
+
+    std::vector<double> determinants_of_deformation_gradients;
+    for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
+        determinants_of_deformation_gradients.push_back(MathUtils<double>::Det(deformation_gradients[GPoint]));
+    }
+
     std::vector<double> biot_coefficients;
     for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
-        this->CalculateKinematics(Variables, GPoint);
         Variables.B = b_matrices[GPoint];
 
         this->CalculateStrain(Variables, GPoint);
+
+        // Np and GradNpT are used in SetConstitutiveParameters
+        noalias(Variables.Np)      = row(Variables.NContainer, GPoint);
+        noalias(Variables.GradNpT) = Variables.DN_DXContainer[GPoint];
         this->SetConstitutiveParameters(Variables, ConstitutiveParameters);
         ConstitutiveParameters.SetStressVector(mStressVector[GPoint]);
         mConstitutiveLawVector[GPoint]->CalculateMaterialResponseCauchy(ConstitutiveParameters);
@@ -1556,14 +1570,15 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateStrain(ElementVariables& r
         this->CalculateDeformationGradient(rVariables, GPoint);
         noalias(rVariables.StrainVector) = StressStrainUtilities::CalculateHenckyStrain(rVariables.F, VoigtSize);
     } else {
-        this->CalculateCauchyStrain(rVariables);
+        noalias(rVariables.StrainVector) =
+            this->CalculateCauchyStrain(rVariables.B, rVariables.DisplacementVector);
     }
 }
 
 template <unsigned int TDim, unsigned int TNumNodes>
-void UPwSmallStrainElement<TDim, TNumNodes>::CalculateCauchyStrain(ElementVariables& rVariables)
+Vector UPwSmallStrainElement<TDim, TNumNodes>::CalculateCauchyStrain(const Matrix& rB, const Vector& rDisplacement)
 {
-    noalias(rVariables.StrainVector) = prod(rVariables.B, rVariables.DisplacementVector);
+    return prod(rB, rDisplacement);
 }
 
 template <unsigned int TDim, unsigned int TNumNodes>
