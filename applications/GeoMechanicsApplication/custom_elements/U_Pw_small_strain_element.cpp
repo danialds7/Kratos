@@ -1035,10 +1035,8 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAll(MatrixType&        rLe
 
     std::vector<double> biot_moduli_inverse;
     for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
-        noalias(Variables.Np) = row(Variables.NContainer, GPoint);
-
-        RetentionParameters.SetFluidPressure(CalculateFluidPressure(Variables.Np, Variables.PressureVector));
-
+        RetentionParameters.SetFluidPressure(
+            CalculateFluidPressure(row(Variables.NContainer, GPoint), Variables.PressureVector));
         auto degree_of_saturation = mRetentionLawVector[GPoint]->CalculateSaturation(RetentionParameters);
         auto derivative_of_saturation =
             mRetentionLawVector[GPoint]->CalculateDerivativeOfSaturation(RetentionParameters);
