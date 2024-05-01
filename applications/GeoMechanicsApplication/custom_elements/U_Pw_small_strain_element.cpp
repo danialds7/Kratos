@@ -1042,19 +1042,33 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAll(MatrixType&        rLe
         determinants_of_deformation_gradients.push_back(MathUtils<double>::Det(deformation_gradients[GPoint]));
     }
 
-    std::vector<double> biot_coefficients;
+    std::vector<Vector> strain_vectors;
     for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
-        Variables.B = b_matrices[GPoint];
+        if (Variables.UseHenckyStrain) {
+            strain_vectors.push_back(StressStrainUtilities::CalculateHenckyStrain(
+                deformation_gradients[GPoint], VoigtSize));
+        } else {
+            strain_vectors.push_back(this->CalculateCauchyStrain(b_matrices[GPoint], Variables.DisplacementVector));
+        }
+    }
 
-        this->CalculateStrain(Variables, GPoint);
-
-        // Np and GradNpT are used in SetConstitutiveParameters
+    std::vector<Matrix> constitutive_matrices;
+    for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
+        // Setting everything that's used in SetConstitutiveParameters
+        Variables.StrainVector     = strain_vectors[GPoint];
+        Variables.detF             = determinants_of_deformation_gradients[GPoint];
         noalias(Variables.Np)      = row(Variables.NContainer, GPoint);
         noalias(Variables.GradNpT) = Variables.DN_DXContainer[GPoint];
+
         this->SetConstitutiveParameters(Variables, ConstitutiveParameters);
         ConstitutiveParameters.SetStressVector(mStressVector[GPoint]);
         mConstitutiveLawVector[GPoint]->CalculateMaterialResponseCauchy(ConstitutiveParameters);
-        biot_coefficients.push_back(CalculateBiotCoefficient(Variables.ConstitutiveMatrix, hasBiotCoefficient));
+        constitutive_matrices.push_back(Variables.ConstitutiveMatrix);
+    }
+
+    std::vector<double> biot_coefficients;
+    for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
+        biot_coefficients.push_back(CalculateBiotCoefficient(constitutive_matrices[GPoint], hasBiotCoefficient));
     }
 
     std::vector<double> biot_moduli_inverse;
@@ -1072,27 +1086,14 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAll(MatrixType&        rLe
     for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
         // Compute GradNpT, B and StrainVector
         this->CalculateKinematics(Variables, GPoint);
-        Variables.B = b_matrices[GPoint];
-
-        // Compute infinitesimal strain
-        this->CalculateStrain(Variables, GPoint);
-
-        // Set Gauss points variables to constitutive law parameters
-        this->SetConstitutiveParameters(Variables, ConstitutiveParameters);
-
-        // Compute Nu and BodyAcceleration
-        GeoElementUtilities::CalculateNuMatrix<TDim, TNumNodes>(Variables.Nu, Variables.NContainer, GPoint);
-        GeoElementUtilities::InterpolateVariableWithComponents<TDim, TNumNodes>(
-            Variables.BodyAcceleration, Variables.NContainer, Variables.VolumeAcceleration, GPoint);
-
-        // Compute constitutive tensor and stresses
-        ConstitutiveParameters.SetStressVector(mStressVector[GPoint]);
-        mConstitutiveLawVector[GPoint]->CalculateMaterialResponseCauchy(ConstitutiveParameters);
-
-        CalculateRetentionResponse(Variables, RetentionParameters, GPoint);
-
+        Variables.B                  = b_matrices[GPoint];
+        Variables.F                  = deformation_gradients[GPoint];
+        Variables.detF               = determinants_of_deformation_gradients[GPoint];
+        Variables.StrainVector       = strain_vectors[GPoint];
         Variables.BiotCoefficient    = biot_coefficients[GPoint];
         Variables.BiotModulusInverse = biot_moduli_inverse[GPoint];
+
+        CalculateRetentionResponse(Variables, RetentionParameters, GPoint);
 
         this->CalculatePermeabilityUpdateFactor(Variables);
 
@@ -1102,6 +1103,11 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAll(MatrixType&        rLe
 
         Variables.IntegrationCoefficientInitialConfiguration = this->CalculateIntegrationCoefficient(
             IntegrationPoints, GPoint, Variables.detJInitialConfiguration);
+
+        // Compute Nu and BodyAcceleration
+        GeoElementUtilities::CalculateNuMatrix<TDim, TNumNodes>(Variables.Nu, Variables.NContainer, GPoint);
+        GeoElementUtilities::InterpolateVariableWithComponents<TDim, TNumNodes>(
+            Variables.BodyAcceleration, Variables.NContainer, Variables.VolumeAcceleration, GPoint);
 
         // Contributions to the left hand side
         if (CalculateStiffnessMatrixFlag) this->CalculateAndAddLHS(rLeftHandSideMatrix, Variables);
@@ -1282,7 +1288,7 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAndAddLHS(MatrixType& rLef
     KRATOS_TRY
 
     this->CalculateAndAddStiffnessMatrix(rLeftHandSideMatrix, rVariables);
-    this->CalculateAndAddCompressibilityMatrix(rLeftHandSideMatrix, rVariables);
+    //    this->CalculateAndAddCompressibilityMatrix(rLeftHandSideMatrix, rVariables);
 
     if (!rVariables.IgnoreUndrained) {
         this->CalculateAndAddCouplingMatrix(rLeftHandSideMatrix, rVariables);
