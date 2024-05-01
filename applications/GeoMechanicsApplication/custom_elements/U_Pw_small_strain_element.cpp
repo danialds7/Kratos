@@ -1022,10 +1022,20 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAll(MatrixType&        rLe
     // Create general parameters of retention law
     RetentionLaw::Parameters RetentionParameters(this->GetProperties(), rCurrentProcessInfo);
 
-    const bool          hasBiotCoefficient = rProp.Has(BIOT_COEFFICIENT);
+    const bool hasBiotCoefficient = rProp.Has(BIOT_COEFFICIENT);
+
+    std::vector<Matrix> b_matrices;
+    for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
+        Matrix b_matrix;
+        this->CalculateBMatrix(b_matrix, Variables.DN_DXContainer[GPoint], row(Variables.NContainer, GPoint));
+        b_matrices.push_back(b_matrix);
+    }
+
     std::vector<double> biot_coefficients;
     for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
         this->CalculateKinematics(Variables, GPoint);
+        Variables.B = b_matrices[GPoint];
+
         this->CalculateStrain(Variables, GPoint);
         this->SetConstitutiveParameters(Variables, ConstitutiveParameters);
         ConstitutiveParameters.SetStressVector(mStressVector[GPoint]);
@@ -1037,8 +1047,8 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAll(MatrixType&        rLe
     for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
         RetentionParameters.SetFluidPressure(
             CalculateFluidPressure(row(Variables.NContainer, GPoint), Variables.PressureVector));
-        auto degree_of_saturation = mRetentionLawVector[GPoint]->CalculateSaturation(RetentionParameters);
-        auto derivative_of_saturation =
+        const auto degree_of_saturation = mRetentionLawVector[GPoint]->CalculateSaturation(RetentionParameters);
+        const auto derivative_of_saturation =
             mRetentionLawVector[GPoint]->CalculateDerivativeOfSaturation(RetentionParameters);
 
         biot_moduli_inverse.push_back(CalculateInverseBiotModulus(
@@ -1048,6 +1058,7 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAll(MatrixType&        rLe
     for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
         // Compute GradNpT, B and StrainVector
         this->CalculateKinematics(Variables, GPoint);
+        Variables.B = b_matrices[GPoint];
 
         // Compute infinitesimal strain
         this->CalculateStrain(Variables, GPoint);
@@ -1065,8 +1076,6 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAll(MatrixType&        rLe
         mConstitutiveLawVector[GPoint]->CalculateMaterialResponseCauchy(ConstitutiveParameters);
 
         CalculateRetentionResponse(Variables, RetentionParameters, GPoint);
-
-        this->InitializeBiotCoefficients(Variables, hasBiotCoefficient);
 
         Variables.BiotCoefficient    = biot_coefficients[GPoint];
         Variables.BiotModulusInverse = biot_moduli_inverse[GPoint];
