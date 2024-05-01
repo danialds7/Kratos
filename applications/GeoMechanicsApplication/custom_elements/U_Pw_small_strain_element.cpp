@@ -155,7 +155,7 @@ void UPwSmallStrainElement<TDim, TNumNodes>::InitializeSolutionStep(const Proces
         this->CalculateKinematics(Variables, GPoint);
 
         // Compute infinitesimal strain
-        noalias(Variables.StrainVector) = this->CalculateStrain(Variables, GPoint);
+        this->CalculateStrain(Variables, GPoint);
 
         // Set Gauss points variables to constitutive law parameters
         this->SetConstitutiveParameters(Variables, ConstitutiveParameters);
@@ -258,7 +258,7 @@ void UPwSmallStrainElement<TDim, TNumNodes>::InitializeNonLinearIteration(const 
         this->CalculateKinematics(Variables, GPoint);
 
         // Compute infinitesimal strain
-        noalias(Variables.StrainVector) = this->CalculateStrain(Variables, GPoint);
+        this->CalculateStrain(Variables, GPoint);
 
         // Set gauss points variables to constitutive law parameters
         this->SetConstitutiveParameters(Variables, ConstitutiveParameters);
@@ -308,7 +308,7 @@ void UPwSmallStrainElement<TDim, TNumNodes>::FinalizeSolutionStep(const ProcessI
         this->CalculateKinematics(Variables, GPoint);
 
         // Compute infinitesimal strain
-        noalias(Variables.StrainVector) = this->CalculateStrain(Variables, GPoint);
+        this->CalculateStrain(Variables, GPoint);
 
         // Set Gauss points variables to constitutive law parameters
         this->SetConstitutiveParameters(Variables, ConstitutiveParameters);
@@ -578,7 +578,7 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateOnIntegrationPoints(const 
             this->CalculateKinematics(Variables, GPoint);
 
             // Compute infinitesimal strain
-            noalias(Variables.StrainVector) = this->CalculateStrain(Variables, GPoint);
+            this->CalculateStrain(Variables, GPoint);
 
             // set Gauss points variables to constitutive law parameters
             this->SetConstitutiveParameters(Variables, ConstitutiveParameters);
@@ -634,7 +634,7 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateOnIntegrationPoints(
             this->CalculateKinematics(Variables, GPoint);
 
             // Compute strain, needed for update permeability
-            noalias(Variables.StrainVector) = this->CalculateStrain(Variables, GPoint);
+            this->CalculateStrain(Variables, GPoint);
             this->CalculatePermeabilityUpdateFactor(Variables);
 
             GeoElementUtilities::InterpolateVariableWithComponents<TDim, TNumNodes>(
@@ -720,7 +720,7 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateOnIntegrationPoints(const 
             this->CalculateKinematics(Variables, GPoint);
 
             // Compute infinitesimal strain
-            noalias(Variables.StrainVector) = this->CalculateStrain(Variables, GPoint);
+            this->CalculateStrain(Variables, GPoint);
 
             // Set Gauss points variables to constitutive law parameters
             this->SetConstitutiveParameters(Variables, ConstitutiveParameters);
@@ -775,7 +775,7 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateOnIntegrationPoints(const 
             // Compute element kinematics (Np, gradNpT, |J|, B, strains)
             this->CalculateKinematics(Variables, GPoint);
 
-            noalias(Variables.StrainVector) = this->CalculateStrain(Variables, GPoint);
+            this->CalculateStrain(Variables, GPoint);
 
             if (rOutput[GPoint].size() != Variables.StrainVector.size())
                 rOutput[GPoint].resize(Variables.StrainVector.size(), false);
@@ -895,7 +895,7 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateMaterialStiffnessMatrix(Ma
         this->CalculateKinematics(Variables, GPoint);
 
         // Compute infinitesimal strain
-        noalias(Variables.StrainVector) = this->CalculateStrain(Variables, GPoint);
+        this->CalculateStrain(Variables, GPoint);
 
         // Set Gauss points variables to constitutive law parameters
         this->SetConstitutiveParameters(Variables, ConstitutiveParameters);
@@ -1046,7 +1046,7 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAll(MatrixType&        rLe
     for (unsigned int GPoint = 0; GPoint < NumGPoints; ++GPoint) {
         Variables.B = b_matrices[GPoint];
 
-        noalias(Variables.StrainVector) = this->CalculateStrain(Variables, GPoint);
+        this->CalculateStrain(Variables, GPoint);
 
         // Np and GradNpT are used in SetConstitutiveParameters
         noalias(Variables.Np)      = row(Variables.NContainer, GPoint);
@@ -1075,7 +1075,7 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAll(MatrixType&        rLe
         Variables.B = b_matrices[GPoint];
 
         // Compute infinitesimal strain
-        noalias(Variables.StrainVector) = this->CalculateStrain(Variables, GPoint);
+        this->CalculateStrain(Variables, GPoint);
 
         // Set Gauss points variables to constitutive law parameters
         this->SetConstitutiveParameters(Variables, ConstitutiveParameters);
@@ -1564,13 +1564,14 @@ void UPwSmallStrainElement<TDim, TNumNodes>::CalculateAndAddFluidBodyFlow(Vector
 }
 
 template <unsigned int TDim, unsigned int TNumNodes>
-Vector UPwSmallStrainElement<TDim, TNumNodes>::CalculateStrain(ElementVariables& rVariables, unsigned int GPoint)
+void UPwSmallStrainElement<TDim, TNumNodes>::CalculateStrain(ElementVariables& rVariables, unsigned int GPoint)
 {
     if (rVariables.UseHenckyStrain) {
         this->CalculateDeformationGradient(rVariables, GPoint);
-        return StressStrainUtilities::CalculateHenckyStrain(rVariables.F, VoigtSize);
+        noalias(rVariables.StrainVector) = StressStrainUtilities::CalculateHenckyStrain(rVariables.F, VoigtSize);
     } else {
-        return this->CalculateCauchyStrain(rVariables.B, rVariables.DisplacementVector);
+        noalias(rVariables.StrainVector) =
+            this->CalculateCauchyStrain(rVariables.B, rVariables.DisplacementVector);
     }
 }
 
