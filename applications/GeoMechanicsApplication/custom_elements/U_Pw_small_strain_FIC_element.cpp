@@ -141,7 +141,7 @@ void UPwSmallStrainFICElement<TDim, TNumNodes>::InitializeNonLinearIteration(con
         this->CalculateKinematics(Variables, GPoint);
 
         // Compute infinitessimal strain
-        this->CalculateStrain(Variables, GPoint);
+        noalias(Variables.StrainVector) = this->CalculateStrain(Variables, GPoint);
 
         // set gauss points variables to constitutivelaw parameters
         this->SetConstitutiveParameters(Variables, ConstitutiveParameters);
@@ -192,7 +192,7 @@ void UPwSmallStrainFICElement<TDim, TNumNodes>::FinalizeNonLinearIteration(const
         this->CalculateKinematics(Variables, GPoint);
 
         // Compute infinitessimal strain
-        this->CalculateStrain(Variables, GPoint);
+        noalias(Variables.StrainVector) = this->CalculateStrain(Variables, GPoint);
 
         // set gauss points variables to constitutivelaw parameters
         this->SetConstitutiveParameters(Variables, ConstitutiveParameters);
