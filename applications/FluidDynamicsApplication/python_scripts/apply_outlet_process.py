@@ -155,7 +155,7 @@ class ApplyOutletProcess(KratosMultiphysics.Process):
         # Add the hydrostatic component to the current PRESSURE and EXTERNAL_PRESSURE values
         for node in self.outlet_model_part.Nodes:
             body_force_proj = body_force_dir[0]*node.X + body_force_dir[1]*node.Y + body_force_dir[2]*node.Z    # Iteration node body force projection
-            rho = node.GetSolutionStepValue(KratosMultiphysics.DENSITY, 0)                                      # Nodal density value
+            rho = node.GetValue(KratosMultiphysics.DENSITY)                                      # Nodal density value
             hyd_pres = rho*body_force_norm*(self.h_top + (body_force_proj-min_proj))                            # Iteration node hydrostatic pressure
             cur_pres = node.GetSolutionStepValue(KratosMultiphysics.EXTERNAL_PRESSURE, 0)                       # Iteration node imposed external pressure
 

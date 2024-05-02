@@ -1,0 +1,34 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        
+        
+
+        {
+            "name": "Python: MainKratos",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/home/dani/test_01_two_Fluid/MainKratos.py",
+            "python": "/usr/bin/python3-dbg",
+            "console": "integratedTerminal",
+          
+        },
+        {
+            "name": "C++: Attach",
+            "type": "cppdbg",
+            "request": "attach",
+            "program": "/usr/bin/python3-dbg",
+            "processId": "${command:pickProcess}",
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+            
+        }
+    ]
+}

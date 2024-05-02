@@ -132,7 +132,7 @@ namespace Kratos
             const double norm_vel = norm_2(vel_gauss);
             array_1d<double, TNumNodes > a_dot_grad = prod(DN_DX, vel_gauss);
 
-            const double tau = this->CalculateTau(Variables,norm_vel,h);
+            const double tau = this->CalculateTau(rVariables,norm_vel,h); //DDehghan: possible typo the in first arg
 
             //terms multiplying dphi/dt (aux1)
             noalias(aux1) += (1.0+tau*Variables.beta*Variables.div_v)*outer_prod(N, N);
