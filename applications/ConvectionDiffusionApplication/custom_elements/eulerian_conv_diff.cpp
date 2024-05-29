@@ -101,8 +101,9 @@ namespace Kratos
 
         // Getting the values of Current Process Info and computing the value of h
         this-> GetNodalValues(Variables,rCurrentProcessInfo);
+        double convection_coefficient = 0.0; // DDEHGHAN: convection coefficient
         double h = this->ComputeH(DN_DX);
-
+        double numerical_diffusion = 0.0; // DDEHGHAN: numerical diffusion term
         //Computing the divergence
         for (unsigned int i = 0; i < TNumNodes; i++)
         {
@@ -127,13 +128,16 @@ namespace Kratos
             for (unsigned int i = 0; i < TNumNodes; i++)
             {
                  for(unsigned int k=0; k<TDim; k++)
-                    vel_gauss[k] += N[i]*(Variables.v[i][k]*Variables.theta + Variables.vold[i][k]*(1.0-Variables.theta));
+                    vel_gauss[k] += N[i]*(Variables.v[i][k]*Variables.theta + Variables.vold[i][k]*(1.0-Variables.theta));  
             }
             const double norm_vel = norm_2(vel_gauss);
             array_1d<double, TNumNodes > a_dot_grad = prod(DN_DX, vel_gauss);
-
+            for (unsigned int i = 0; i < TNumNodes; i++)
+            {
+                 convection_coefficient += norm_vel; // DDEHGHAN: convection coefficient using gauss velocity at each node  
+            }
             const double tau = this->CalculateTau(Variables,norm_vel,h);
-
+            
             //terms multiplying dphi/dt (aux1)
             noalias(aux1) += (1.0+tau*Variables.beta*Variables.div_v)*outer_prod(N, N);
             noalias(aux1) +=  tau*outer_prod(a_dot_grad, N);
@@ -141,15 +145,16 @@ namespace Kratos
             //terms which multiply the gradient of phi
             noalias(aux2) += (1.0+tau*Variables.beta*Variables.div_v)*outer_prod(N, a_dot_grad);
             noalias(aux2) += tau*outer_prod(a_dot_grad, a_dot_grad);
+            
         }
-
+        numerical_diffusion = Variables.density*Variables.specific_heat * h / 2.0; // DDEHGHAN: numerical diffusion term
         //adding the second and third term in the formulation
         noalias(rLeftHandSideMatrix)  = (Variables.dt_inv*Variables.density*Variables.specific_heat + Variables.theta*Variables.beta*Variables.div_v)*aux1;
         noalias(rRightHandSideVector) = (Variables.dt_inv*Variables.density*Variables.specific_heat - (1.0-Variables.theta)*Variables.beta*Variables.div_v)*prod(aux1,Variables.phi_old);
 
         //adding the diffusion
-        noalias(rLeftHandSideMatrix)  += (Variables.conductivity * Variables.theta * prod(DN_DX, trans(DN_DX)))*static_cast<double>(TNumNodes);
-        noalias(rRightHandSideVector) -= prod((Variables.conductivity * (1.0-Variables.theta) * prod(DN_DX, trans(DN_DX))),Variables.phi_old)*static_cast<double>(TNumNodes) ;
+        noalias(rLeftHandSideMatrix)  += ((Variables.conductivity+numerical_diffusion) * Variables.theta * prod(DN_DX, trans(DN_DX)))*static_cast<double>(TNumNodes);
+        noalias(rRightHandSideVector) -= prod(((Variables.conductivity+numerical_diffusion) * (1.0-Variables.theta) * prod(DN_DX, trans(DN_DX))),Variables.phi_old)*static_cast<double>(TNumNodes) ;
 
         //terms in aux2
         noalias(rLeftHandSideMatrix) += Variables.density*Variables.specific_heat*Variables.theta*aux2;
@@ -183,9 +188,9 @@ namespace Kratos
         rVariables.conductivity = 0.0;
         rVariables.specific_heat = 0.0;
         rVariables.density = 0.0;
-        rVariables.beta = 0.0;
+        rVariables.beta = 1.0;
         rVariables.div_v = 0.0;
-
+        
 
         KRATOS_CATCH( "" )
     }
