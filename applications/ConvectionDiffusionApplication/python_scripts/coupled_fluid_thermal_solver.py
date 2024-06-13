@@ -220,7 +220,7 @@ class CoupledFluidThermalSolver(PythonSolver):
     def FinalizeSolutionStep(self):
         self.fluid_solver.FinalizeSolutionStep()
         self.thermal_solver.FinalizeSolutionStep()
-
+    
     def __GetElementAndConditionNames(self):
         ''' Auxiliary function to get the element and condition names for the connectivity preserve modeler call
 

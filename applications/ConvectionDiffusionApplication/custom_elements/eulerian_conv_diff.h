@@ -58,7 +58,7 @@ public:
     EulerianConvectionDiffusionElement(IndexType NewId, GeometryType::Pointer pGeometry, PropertiesType::Pointer pProperties)
     : Element(NewId, pGeometry, pProperties)
     {}
-
+    
     /// Destructor.
     virtual ~EulerianConvectionDiffusionElement() {};
 
