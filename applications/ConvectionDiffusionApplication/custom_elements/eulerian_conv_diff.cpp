@@ -141,26 +141,7 @@ namespace Kratos
             //terms which multiply the gradient of phi
             noalias(aux2) += (1.0+tau*Variables.beta*Variables.div_v)*outer_prod(N, a_dot_grad);
             noalias(aux2) += tau*outer_prod(a_dot_grad, a_dot_grad);
-            
-            // Check if the element number is a specific value
-        Kratos::IndexedObject::IndexType elementNumber = 100000; // Replace with the desired element number
-        if (this->Id() == static_cast<Kratos::IndexedObject::IndexType>(elementNumber))
-        {
-            // Print the element number and current node number
-            std::cout << "Element Number: " << elementNumber << ", Node Number: " << igauss << std::endl;
         
-            // Print the left hand side matrix
-            std::cout << "a_dot_grad for Element " << elementNumber << ", Node " << igauss << ":" << std::endl;
-            std::cout << a_dot_grad << std::endl;
-        
-            // Print the right hand side vector
-            std::cout << "N Side Vector for Element " << elementNumber << ", Node " << igauss << ":" << std::endl;
-            std::cout << N << std::endl;
-        
-            // Pause and wait for user input
-            //std::cout << "Press Enter to continue...";
-            //std::cin.ignore();
-        }
         }
 
         //adding the second and third term in the formulation
