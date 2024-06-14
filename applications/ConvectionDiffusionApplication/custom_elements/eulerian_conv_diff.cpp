@@ -166,16 +166,16 @@ namespace Kratos
 
 
         // Check if the element number is a specific value
-        Kratos::IndexedObject::IndexType elementNumber = 2530; // Replace with the desired element number
+        Kratos::IndexedObject::IndexType elementNumber = 100000; // Replace with the desired element number
         if (this->Id() == static_cast<Kratos::IndexedObject::IndexType>(elementNumber))
         {
             // Print the left hand side matrix
-            std::cout << "Left Hand Side Matrix for Element " << elementNumber << ":" << std::endl;
-            std::cout << rLeftHandSideMatrix << std::endl;
+            std::cout << "AUX1 Matrix for Element " << elementNumber << ":" << std::endl;
+            std::cout << aux1 << std::endl;
         
             // Print the right hand side vector
-            std::cout << "Right Hand Side Vector for Element " << elementNumber << ":" << std::endl;
-            std::cout << rRightHandSideVector << std::endl;
+            std::cout << "Aux2 Matrix Side Vector for Element " << elementNumber << ":" << std::endl;
+            std::cout << aux2 << std::endl;
         
             // Pause and wait for user input
             //std::cout << "Press Enter to continue...";
