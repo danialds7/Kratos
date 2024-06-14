@@ -126,8 +126,8 @@ namespace Kratos
             array_1d<double, TDim > vel_gauss=ZeroVector(TDim);
             for (unsigned int i = 0; i < TNumNodes; i++)
             {
-                 for(unsigned int k=0; k<TDim; k++)
-                    vel_gauss[k] += N[i]*(Variables.v[i][k]*Variables.theta + Variables.vold[i][k]*(1.0-Variables.theta));
+             for(unsigned int k=0; k<TDim; k++)
+                vel_gauss[k] += N[i]*(Variables.v[i][k]*Variables.theta + Variables.vold[i][k]*(1.0-Variables.theta));
             }
             const double norm_vel = norm_2(vel_gauss);
             array_1d<double, TNumNodes > a_dot_grad = prod(DN_DX, vel_gauss);
@@ -141,6 +141,26 @@ namespace Kratos
             //terms which multiply the gradient of phi
             noalias(aux2) += (1.0+tau*Variables.beta*Variables.div_v)*outer_prod(N, a_dot_grad);
             noalias(aux2) += tau*outer_prod(a_dot_grad, a_dot_grad);
+            
+            // Check if the element number is a specific value
+        Kratos::IndexedObject::IndexType elementNumber = 100000; // Replace with the desired element number
+        if (this->Id() == static_cast<Kratos::IndexedObject::IndexType>(elementNumber))
+        {
+            // Print the element number and current node number
+            std::cout << "Element Number: " << elementNumber << ", Node Number: " << igauss << std::endl;
+        
+            // Print the left hand side matrix
+            std::cout << "a_dot_grad for Element " << elementNumber << ", Node " << igauss << ":" << std::endl;
+            std::cout << a_dot_grad << std::endl;
+        
+            // Print the right hand side vector
+            std::cout << "N Side Vector for Element " << elementNumber << ", Node " << igauss << ":" << std::endl;
+            std::cout << N << std::endl;
+        
+            // Pause and wait for user input
+            //std::cout << "Press Enter to continue...";
+            //std::cin.ignore();
+        }
         }
 
         //adding the second and third term in the formulation
@@ -165,22 +185,7 @@ namespace Kratos
         rLeftHandSideMatrix *= Volume/static_cast<double>(TNumNodes);
 
 
-        // Check if the element number is a specific value
-        Kratos::IndexedObject::IndexType elementNumber = 100000; // Replace with the desired element number
-        if (this->Id() == static_cast<Kratos::IndexedObject::IndexType>(elementNumber))
-        {
-            // Print the left hand side matrix
-            std::cout << "AUX1 Matrix for Element " << elementNumber << ":" << std::endl;
-            std::cout << aux1 << std::endl;
         
-            // Print the right hand side vector
-            std::cout << "Aux2 Matrix Side Vector for Element " << elementNumber << ":" << std::endl;
-            std::cout << aux2 << std::endl;
-        
-            // Pause and wait for user input
-            //std::cout << "Press Enter to continue...";
-            //std::cin.ignore();
-        }
 
         KRATOS_CATCH("Error in Eulerian ConvDiff Element")
     }
