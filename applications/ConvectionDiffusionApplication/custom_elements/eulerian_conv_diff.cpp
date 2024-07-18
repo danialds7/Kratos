@@ -131,6 +131,7 @@ namespace Kratos
                  for(unsigned int k=0; k<TDim; k++)
                     vel_gauss[k] += N[i]*(Variables.v[i][k]*Variables.theta + Variables.vold[i][k]*(1.0-Variables.theta));  
             }
+            
             norm_vel = norm_2(vel_gauss);
             array_1d<double, TNumNodes > a_dot_grad = prod(DN_DX, vel_gauss);
             
@@ -259,6 +260,7 @@ namespace Kratos
 			rVariables.v[i]=ZeroVector(3);
 			rVariables.vold[i]=ZeroVector(3);
             rVariables.volumetric_source[i] = 0.0;
+
             if (IsDefinedVelocityVariable)
             {
 				  const Variable<array_1d<double, 3 > >& rVelocityVar = my_settings->GetVelocityVariable();
@@ -267,13 +269,13 @@ namespace Kratos
 				  //active_convection=true;
 			}
 
-			if (IsDefinedMeshVelocityVariable)
-            {
-				  const Variable<array_1d<double, 3 > >& rMeshVelocityVar = my_settings->GetMeshVelocityVariable();
-				  rVariables.v[i] -= GetGeometry()[i].FastGetSolutionStepValue(rMeshVelocityVar);
-				  rVariables.vold[i] -= GetGeometry()[i].FastGetSolutionStepValue(rMeshVelocityVar,1);
+			//if (IsDefinedMeshVelocityVariable) //DDehghan: Causing zero convection veloity when fm-ale is activated in two fluid solver as the mesh and flow velocity are equal
+            //{
+				  //const Variable<array_1d<double, 3 > >& rMeshVelocityVar = my_settings->GetMeshVelocityVariable();
+				  //rVariables.v[i] -= GetGeometry()[i].FastGetSolutionStepValue(rMeshVelocityVar);
+				  //rVariables.vold[i] -= GetGeometry()[i].FastGetSolutionStepValue(rMeshVelocityVar,1);
 				  //active_convection=true;
-			}
+			//}
 
 			if (IsDefinedDensityVariable)
 			{
