@@ -4,6 +4,7 @@ import KratosMultiphysics
 # Import applications modules
 from KratosMultiphysics.FluidDynamicsApplication import python_solvers_wrapper_fluid
 from KratosMultiphysics.ConvectionDiffusionApplication import python_solvers_wrapper_convection_diffusion
+from KratosMultiphysics.FreeSurfaceApplication import python_solvers_wrapper_free_surface
 
 # Importing the base class
 from KratosMultiphysics.python_solver import PythonSolver
@@ -23,84 +24,31 @@ class CoupledFluidThermalSolver(PythonSolver):
             "domain_size" : -1,
             "echo_level": 0,
             "fluid_solver_settings": {
-            "solver_type": "two_fluids_hydraulic",
-            "model_part_name": "",
-            "domain_size": -1,
-            "model_import_settings": {
-                "input_type": "mdpa",
-                "input_filename": "unknown_name",
-                "reorder": false
+            "model_part_name"                       : "",
+            "domain_size"                           : 3,
+            "density"                               : 0.0,
+            "viscosity"                             : 0.0,
+            "wall_law_y"                            : 0.0,
+            "stabdt_pressure_factor"                : 1.0,
+            "stabdt_convection_factor"              : 0.1,
+            "use_mass_correction"                   : true,
+            "redistance_frequency"                  : 5,
+            "extrapolation_layers"                  : 5,
+            "tau2_factor"                           : 0.0,
+            "max_safety_factor"                     : 0.5,
+            "max_time_step_size"                    : 1e-2,
+            "initial_time_step_size"                : 1e-5,
+            "number_of_initial_time_steps"          : 10,
+            "reduction_on_failure"                  : 0.3,
+            "assume_constant_pressure"              : true,
+            "use_parallel_distance_calculation"     : false,
+            "compute_porous_resistance_law"         : "NONE",
+            "echo_level"                            : 0,
+            "solver_type"                           : "EdgebasedLevelset",
+            "linear_solver_settings"      : {
+                "solver_type"                       : "amgcl"
             },
-            "material_import_settings": {
-                "materials_filename": ""
-            },
-            "maximum_iterations": 7,
-            "echo_level": 0,
-            "compute_reactions": false,
-            "analysis_type": "non_linear",
-            "reform_dofs_at_each_step": false,
-            "consider_periodic_conditions": false,
-            "relative_velocity_tolerance": 1e-3,
-            "absolute_velocity_tolerance": 1e-5,
-            "relative_pressure_tolerance": 1e-3,
-            "absolute_pressure_tolerance": 1e-5,
-            "linear_solver_settings"       : {
-                "solver_type"         : "amgcl"
-            },
-            "volume_model_part_name" : "volume_model_part",
-            "skin_parts": [""],
-            "assign_neighbour_elements_to_conditions": true,
-            "no_skin_parts":[""],
-            "time_stepping"                : {
-                "automatic_time_step" : true,
-                "CFL_number"          : 1,
-                "minimum_delta_time"  : 1e-2,
-                "maximum_delta_time"  : 1.0,
-                "time_step"           : 0.0
-            },
-            "move_mesh_flag": false,
-            "formulation": {
-                "dynamic_tau": 1.0,
-                "mass_source":true
-            },
-            "artificial_viscosity": false,
-            "artificial_visocosity_settings":{
-                "limiter_coefficient": 1000
-            },
-            "time_scheme": "NEEDS TO BE FIXED --> PROBLEMS CONVERGENCE CRITERIO",
-            "eulerian_fm_ale": true,
-            "eulerian_fm_ale_settings":{
-                "max_CFL" : 1.0,
-                "max_substeps" : 0,
-                "eulerian_error_compensation" : false,
-                "element_type" : "levelset_convection_supg",
-                "element_settings" : {
-                    "dynamic_tau" : 1.0,
-                    "tau_nodal":true
-                }
-            },
-            "levelset_convection_settings": {
-                "max_CFL" : 1.0,
-                "max_substeps" : 0,
-                "eulerian_error_compensation" : false,
-                "element_type" : "levelset_convection_supg",
-                "element_settings" : {
-                    "dynamic_tau" : 1.0,
-                    "tau_nodal":true
-                }
-            },
-            "distance_reinitialization": "variational",
-            "parallel_redistance_max_layers" : 25,
-            "distance_smoothing": false,
-            "distance_smoothing_coefficient": 1.0,
-            "distance_modification_settings": {
-                "model_part_name": "",
-                "distance_threshold": 1e-5,
-                "continuous_distance": true,
-                "check_at_each_time_step": true,
-                "avoid_almost_empty_elements": false,
-                "deactivate_full_negative_elements": false
-            }
+            "model_import_settings"                 : { }
         },
             "thermal_solver_settings": {
                 "solver_type": "transient",
@@ -127,9 +75,7 @@ class CoupledFluidThermalSolver(PythonSolver):
 
         ## Create subdomain solvers
         #self.fluid_solver = python_solvers_wrapper_fluid.CreateSolverByParameters(self.model, self.settings["fluid_solver_settings"],"OpenMP")
-        solver_module_name = "navier_stokes_two_fluid_hydraulic_solver"
-        module_full = 'KratosMultiphysics.FluidDynamicsHydraulicsApplication.' + solver_module_name
-        self.fluid_solver = import_module(module_full).CreateSolver(self.model, self.settings["fluid_solver_settings"])
+        self.fluid_solver = python_solvers_wrapper_free_surface.CreateSolverByParameters(self.model, self.settings["fluid_solver_settings"],"OpenMP")
         self.thermal_solver = python_solvers_wrapper_convection_diffusion.CreateSolverByParameters(self.model,self.settings["thermal_solver_settings"],"OpenMP")
 
     def AddVariables(self):
@@ -185,6 +131,9 @@ class CoupledFluidThermalSolver(PythonSolver):
     def Initialize(self):
         self.fluid_solver.Initialize()
         self.thermal_solver.Initialize()
+
+    def _Redistance(self):
+        self.fluid_solver._Redistance()
 
     def Clear(self):
         (self.fluid_solver).Clear()
