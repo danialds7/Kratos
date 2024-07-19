@@ -104,15 +104,23 @@ namespace Kratos
         "In Boussinesq Force Process: \'AMBIENT_TEMPERATURE\' obtained from ProcessInfo is incorrect." << std::endl <<
         "Expected a positive double, got " << ambient_temperature << std::endl;
 
-        // Note: the default value of 1/AMBIENT_TEMPERATURE is the usual assumption for perfect gases.
-        const double alpha = (mUseAmbientTemperature) ? 1.0 / ambient_temperature : mThermalExpansionCoefficient;
-
         int num_nodes = mrModelPart.NumberOfNodes();
         #pragma omp parallel for firstprivate(num_nodes,ambient_temperature)
         for (int i = 0; i < num_nodes; ++i)
         {
             ModelPart::NodeIterator iNode = mrModelPart.NodesBegin() + i;
             double temperature = iNode->FastGetSolutionStepValue(TEMPERATURE);
+            double distance = iNode->FastGetSolutionStepValue(DISTANCE);
+
+            double alpha;
+            if (distance > 0.0) // air
+            {
+                alpha = 1.0 / ambient_temperature;
+            }
+            else // water
+            {
+                alpha = mThermalExpansionCoefficient;
+            }
 
             iNode->FastGetSolutionStepValue(BODY_FORCE) = (1. - alpha*(temperature-ambient_temperature))*mrGravity;
         }

@@ -101,8 +101,10 @@ namespace Kratos
 
         // Getting the values of Current Process Info and computing the value of h
         this-> GetNodalValues(Variables,rCurrentProcessInfo);
+        
         double h = this->ComputeH(DN_DX);
-
+        double numerical_diffusion = 0.0; // DDEHGHAN: numerical diffusion term
+        double norm_vel = 0; // ddehghan: initialize norm_vel
         //Computing the divergence
         for (unsigned int i = 0; i < TNumNodes; i++)
         {
@@ -116,7 +118,7 @@ namespace Kratos
         BoundedMatrix<double,TNumNodes, TNumNodes> aux1 = ZeroMatrix(TNumNodes, TNumNodes); //terms multiplying dphi/dt
         BoundedMatrix<double,TNumNodes, TNumNodes> aux2 = ZeroMatrix(TNumNodes, TNumNodes); //terms multiplying phi
         bounded_matrix<double,TNumNodes, TDim> tmp;
-
+       
         // Gauss points and Number of nodes coincides in this case.
         for(unsigned int igauss=0; igauss<TNumNodes; igauss++)
         {
@@ -127,13 +129,13 @@ namespace Kratos
             for (unsigned int i = 0; i < TNumNodes; i++)
             {
                  for(unsigned int k=0; k<TDim; k++)
-                    vel_gauss[k] += N[i]*(Variables.v[i][k]*Variables.theta + Variables.vold[i][k]*(1.0-Variables.theta));
+                    vel_gauss[k] += N[i]*(Variables.v[i][k]*Variables.theta + Variables.vold[i][k]*(1.0-Variables.theta));  
             }
-            const double norm_vel = norm_2(vel_gauss);
+            norm_vel = norm_2(vel_gauss);
             array_1d<double, TNumNodes > a_dot_grad = prod(DN_DX, vel_gauss);
-
+            
             const double tau = this->CalculateTau(Variables,norm_vel,h);
-
+            
             //terms multiplying dphi/dt (aux1)
             noalias(aux1) += (1.0+tau*Variables.beta*Variables.div_v)*outer_prod(N, N);
             noalias(aux1) +=  tau*outer_prod(a_dot_grad, N);
@@ -141,15 +143,17 @@ namespace Kratos
             //terms which multiply the gradient of phi
             noalias(aux2) += (1.0+tau*Variables.beta*Variables.div_v)*outer_prod(N, a_dot_grad);
             noalias(aux2) += tau*outer_prod(a_dot_grad, a_dot_grad);
+            
         }
-
+        
+        numerical_diffusion = Variables.density * Variables.specific_heat *h * norm_vel/ 2.0; // DDEHGHAN: isotropic diffusion term
         //adding the second and third term in the formulation
         noalias(rLeftHandSideMatrix)  = (Variables.dt_inv*Variables.density*Variables.specific_heat + Variables.theta*Variables.beta*Variables.div_v)*aux1;
         noalias(rRightHandSideVector) = (Variables.dt_inv*Variables.density*Variables.specific_heat - (1.0-Variables.theta)*Variables.beta*Variables.div_v)*prod(aux1,Variables.phi_old);
 
         //adding the diffusion
-        noalias(rLeftHandSideMatrix)  += (Variables.conductivity * Variables.theta * prod(DN_DX, trans(DN_DX)))*static_cast<double>(TNumNodes);
-        noalias(rRightHandSideVector) -= prod((Variables.conductivity * (1.0-Variables.theta) * prod(DN_DX, trans(DN_DX))),Variables.phi_old)*static_cast<double>(TNumNodes) ;
+        noalias(rLeftHandSideMatrix)  += ((Variables.conductivity+numerical_diffusion) * Variables.theta * prod(DN_DX, trans(DN_DX)))*static_cast<double>(TNumNodes);
+        noalias(rRightHandSideVector) -= prod(((Variables.conductivity+numerical_diffusion) * (1.0-Variables.theta) * prod(DN_DX, trans(DN_DX))),Variables.phi_old)*static_cast<double>(TNumNodes) ;
 
         //terms in aux2
         noalias(rLeftHandSideMatrix) += Variables.density*Variables.specific_heat*Variables.theta*aux2;
@@ -185,7 +189,7 @@ namespace Kratos
         rVariables.density = 0.0;
         rVariables.beta = 0.0;
         rVariables.div_v = 0.0;
-
+        
 
         KRATOS_CATCH( "" )
     }
@@ -310,25 +314,34 @@ namespace Kratos
     }
 
     template< unsigned int TDim, unsigned int TNumNodes >
-    double EulerianConvectionDiffusionElement<TDim,TNumNodes>::CalculateTau(const ElementVariables& rVariables, double norm_vel, double h)
-    {
-        // Dynamic part
-        double inv_tau = rVariables.dyn_st_beta * rVariables.dt_inv;
+double EulerianConvectionDiffusionElement<TDim,TNumNodes>::CalculateTau(const ElementVariables& rVariables, double norm_vel, double h)
+{
+    // Dynamic part
+    double inv_tau = rVariables.dyn_st_beta * rVariables.dt_inv;
 
-        // Convection
-        inv_tau += 2.0 * norm_vel / h + rVariables.beta*rVariables.div_v;
+    // Convection
+    inv_tau += 2.0 * norm_vel / h + rVariables.beta * rVariables.div_v;
 
-        // Dynamic and convection terms are multiplyied by density*specific_heat to have consistent dimensions
-        inv_tau *= rVariables.density * rVariables.specific_heat;
+   
 
-        // Diffusion
-        inv_tau += 4.0 * rVariables.conductivity / (h*h);
+    // Dynamic and convection terms are multiplied by density*specific_heat to have consistent dimensions
+    inv_tau *= rVariables.density * rVariables.specific_heat;
 
-        // Limiting
-        inv_tau = std::max(inv_tau, 1e-2);
+    // Diffusion
+    inv_tau += 4.0 * rVariables.conductivity / (h*h);
 
-        return (rVariables.density*rVariables.specific_heat) / inv_tau;
-    }
+    // Limiting
+    inv_tau = std::max(inv_tau, 1e-2);
+
+    // Final tau calculation
+    double tau = (rVariables.density * rVariables.specific_heat) / inv_tau;
+
+    
+     
+
+    return tau;
+}
+
 
 //----------------------------------------------------------------------------------------
 

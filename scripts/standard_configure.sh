@@ -52,7 +52,9 @@ cmake -H"${KRATOS_SOURCE}" -B"${KRATOS_BUILD}/${KRATOS_BUILD_TYPE}" \
 -DUSE_EIGEN_MKL=OFF                                                 \
 -DKRATOS_BUILD_TESTING=OFF                                          \
 -DKRATOS_GENERATE_PYTHON_STUBS=ON                                    \
--DTRILINOS_ROOT=/globalfs/opt/trilinos/12.10.1/                              
+-DTRILINOS_ROOT=/globalfs/opt/trilinos/12.10.1/                      \
+#-DCMAKE_INSTALL_PREFIX="/home/ddehghan/Kratos"                        \
+-DCMAKE_BUILD_TYPE=Release
 #-DCMAKE_CXX_FLAGS="-g3" 
 
 # Build
