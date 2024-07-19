@@ -82,7 +82,7 @@ class CoupledFluidThermalSolver(PythonSolver):
         # Import the fluid and thermal solver variables. Then merge them to have them in both fluid and thermal solvers.
         self.fluid_solver.AddVariables()
         self.thermal_solver.AddVariables()
-        KratosMultiphysics.MergeVariableListsUtility().Merge(self.fluid_solver.main_model_part, self.thermal_solver.main_model_part)
+        KratosMultiphysics.MergeVariableListsUtility().Merge(self.fluid_solver.model_part, self.thermal_solver.main_model_part)
 
     def ImportModelPart(self):
         # Call the fluid solver to import the model part from the mdpa
@@ -95,7 +95,7 @@ class CoupledFluidThermalSolver(PythonSolver):
         element_name, condition_name = self.__GetElementAndConditionNames()
         modeler = KratosMultiphysics.ConnectivityPreserveModeler()
         modeler.GenerateModelPart(
-            self.fluid_solver.main_model_part,
+            self.fluid_solver.model_part,
             self.thermal_solver.main_model_part,
             element_name,
             condition_name)
@@ -180,7 +180,7 @@ class CoupledFluidThermalSolver(PythonSolver):
         '''
 
         ## Get and check domain size
-        fluid_model_part = self.fluid_solver.main_model_part
+        fluid_model_part = self.fluid_solver.model_part
         domain_size = fluid_model_part.ProcessInfo[KratosMultiphysics.DOMAIN_SIZE]
         if domain_size not in [2,3]:
             raise Exception("DOMAIN_SIZE is not set in ProcessInfo container.")
