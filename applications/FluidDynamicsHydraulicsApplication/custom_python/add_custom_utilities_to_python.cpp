@@ -31,6 +31,7 @@ void AddCustomUtilitiesToPython(pybind11::module& m)
         .def_static("InitialWaterDepth", [](ModelPart &rModelPart){return HydraulicFluidAuxiliaryUtilities::InitialWaterDepth(rModelPart);})
         .def_static("SetInletVelocity", [](ModelPart &rModelPart, double InletVelocity, const Variable<double> &rDistanceVariable){return HydraulicFluidAuxiliaryUtilities::SetInletVelocity(rModelPart, InletVelocity, rDistanceVariable);})
         .def_static("FreeInlet", [](ModelPart &rModelPart){return HydraulicFluidAuxiliaryUtilities::FreeInlet(rModelPart);})
+        .def_static("CalculateArtificialViscosity", [](ModelPart &rModelPart, double artificial_limiter_coefficient){return HydraulicFluidAuxiliaryUtilities::CalculateArtificialViscosity(rModelPart, artificial_limiter_coefficient);})
         .def_static("SetInletFreeSurface", [](ModelPart &rModelPart, const Flags &rSkinFlag, const Variable<double> &rDistanceVariable){return HydraulicFluidAuxiliaryUtilities::SetInletFreeSurface(rModelPart, rSkinFlag, rDistanceVariable);});
 }
 

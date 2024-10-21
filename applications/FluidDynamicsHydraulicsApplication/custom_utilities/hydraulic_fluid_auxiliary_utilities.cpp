@@ -306,5 +306,59 @@ void HydraulicFluidAuxiliaryUtilities::SetInletFreeSurface(ModelPart &rModelPart
         }
     });
 }
+void HydraulicFluidAuxiliaryUtilities::CalculateArtificialViscosity(
+    ModelPart &rModelPart,
+    double artificial_limiter_coefficient)
+{
+    const auto &properties_1 = rModelPart.GetProperties(1);
+    const double water_dynamic_viscosity_max = artificial_limiter_coefficient * properties_1.GetValue(DYNAMIC_VISCOSITY);
+
+    static int total_pos_nodes = 0;
+    static int total_neg_nodes = 0;
+
+    block_for_each(rModelPart.Elements(), [&](Element &rElement) {
+
+        double elem_artificial_viscosity = 0.0;
+        rElement.Calculate(ARTIFICIAL_DYNAMIC_VISCOSITY, elem_artificial_viscosity, rModelPart.GetProcessInfo());
+
+        if (elem_artificial_viscosity > water_dynamic_viscosity_max)
+        {
+            elem_artificial_viscosity = water_dynamic_viscosity_max;
+        }
+
+        auto &r_nodes = rElement.GetGeometry();
+        int neg_nodes = 0;
+        int pos_nodes = 0;
+
+        for (auto &r_node : r_nodes)
+        {
+            const double distance = r_node.FastGetSolutionStepValue(DISTANCE);
+            if (distance > 0)
+            {
+                pos_nodes += 1;
+            }
+            else
+            {
+                neg_nodes += 1;
+            }
+        }
+        
+        if (neg_nodes > 0 && pos_nodes > 0)
+        {
+            elem_artificial_viscosity = 0.0;
+        }
+        // Accumulate the total number of positive and negative nodes
+        total_pos_nodes += pos_nodes;
+        total_neg_nodes += neg_nodes;
+
+        // Print the total number of positive and negative nodes
+        
+        rElement.SetValue(ARTIFICIAL_DYNAMIC_VISCOSITY, elem_artificial_viscosity);
+    });
+        KRATOS_INFO("in c++ : HydraulicFluidAuxiliaryUtilities") << "Total positive nodes: " << total_pos_nodes << std::endl;
+        KRATOS_INFO("In c++ : HydraulicFluidAuxiliaryUtilities") << "Total negative nodes: " << total_neg_nodes << std::endl;
+        total_pos_nodes = 0;
+        total_neg_nodes = 0;
+}       
 
 } // namespace Kratos

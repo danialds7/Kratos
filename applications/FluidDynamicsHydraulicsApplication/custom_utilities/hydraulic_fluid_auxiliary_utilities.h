@@ -116,7 +116,13 @@ public:
      * @param  rDistancesVariable Variable name of the inlet distance.
      */
     static void SetInletFreeSurface(ModelPart &rModelPart, const Flags &rSkinFlag, const Variable<double> &rDistanceVariable);
-     
+    
+    /**
+     * @brief This function calculates the artificial viscosity for the given model part.
+     * @param rModelPart Model Part
+     * @param artificial_limiter_coefficient Coefficient for the artificial viscosity limiter
+     */
+    static void CalculateArtificialViscosity(ModelPart &rModelPart, double artificial_limiter_coefficient);
 
     ///@}
 

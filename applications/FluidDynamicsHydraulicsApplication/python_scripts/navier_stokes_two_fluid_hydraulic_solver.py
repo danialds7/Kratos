@@ -4,12 +4,14 @@ import KratosMultiphysics.kratos_utilities as KratosUtilities
 import math
 # Import applications
 import KratosMultiphysics.FluidDynamicsApplication as KratosCFD
+import KratosMultiphysics.FluidDynamicsHydraulicsApplication as KratosFluidHydraulics
 
 # Import base class file
 from KratosMultiphysics.FluidDynamicsApplication.fluid_solver import FluidSolver
 
 
 from pathlib import Path
+import time
 
 def CreateSolver(model, custom_settings):
     return NavierStokesTwoFluidsHydraulicSolver(model, custom_settings)
@@ -265,7 +267,18 @@ class NavierStokesTwoFluidsHydraulicSolver(FluidSolver):
         self._ComputeVolumeError()
 
         if self.artificial_viscosity:
+            start_time = time.time()
+            KratosFluidHydraulics.HydraulicFluidAuxiliaryUtilities.CalculateArtificialViscosity(
+                self.main_model_part, self.artificial_limiter_coefficient)
+            end_time = time.time()
+            KratosMultiphysics.Logger.PrintInfo(self.__class__.__name__, f"CalculateArtificialViscosity (C++) took {end_time - start_time:.6f} seconds.")
+
+            start_time = time.time()
             self.__CalculateArtificialViscosity()
+            end_time = time.time()
+            KratosMultiphysics.Logger.PrintInfo(self.__class__.__name__, f"__CalculateArtificialViscosity (Python) took {end_time - start_time:.6f} seconds.")
+        # Initialize the solver current step
+        self._GetSolutionStrategy().InitializeSolutionStep()
 
         # Initialize the solver current step
         self._GetSolutionStrategy().InitializeSolutionStep()
@@ -382,8 +395,17 @@ class NavierStokesTwoFluidsHydraulicSolver(FluidSolver):
                 elem_artificial_viscosity= 0.0
             # elif pos_nodes==3:
             #     elem_artificial_viscosity = 0.0
-
-            element.SetValue(KratosCFD.ARTIFICIAL_DYNAMIC_VISCOSITY, elem_artificial_viscosity)
+            total_pos_nodes = 0
+            total_neg_nodes = 0
+        element.SetValue(KratosCFD.ARTIFICIAL_DYNAMIC_VISCOSITY, elem_artificial_viscosity)
+        for element in self.GetComputingModelPart().Elements:
+                nodes = element.GetNodes()
+                pos_nodes = sum(1 for node in nodes if node.GetSolutionStepValue(KratosMultiphysics.DISTANCE) > 0)
+                neg_nodes = len(nodes) - pos_nodes
+                total_pos_nodes += pos_nodes
+                total_neg_nodes += neg_nodes
+        print(f" in Python Total positive nodes: {total_pos_nodes}, Total negative nodes: {total_neg_nodes}")
+            
 
     def __PerformLevelSetConvection(self):
 
