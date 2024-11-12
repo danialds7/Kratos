@@ -355,8 +355,8 @@ void HydraulicFluidAuxiliaryUtilities::CalculateArtificialViscosity(
         
         rElement.SetValue(ARTIFICIAL_DYNAMIC_VISCOSITY, elem_artificial_viscosity);
     });
-        KRATOS_INFO("in c++ : HydraulicFluidAuxiliaryUtilities") << "Total positive nodes: " << total_pos_nodes << std::endl;
-        KRATOS_INFO("In c++ : HydraulicFluidAuxiliaryUtilities") << "Total negative nodes: " << total_neg_nodes << std::endl;
+        //KRATOS_INFO("in c++ : HydraulicFluidAuxiliaryUtilities") << "Total positive nodes: " << total_pos_nodes << std::endl;
+        //KRATOS_INFO("In c++ : HydraulicFluidAuxiliaryUtilities") << "Total negative nodes: " << total_neg_nodes << std::endl;
         total_pos_nodes = 0;
         total_neg_nodes = 0;
 }       

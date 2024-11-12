@@ -24,6 +24,7 @@
 #include "includes/kratos_flags.h"
 #include "includes/constitutive_law.h"
 #include "includes/convection_diffusion_settings.h"
+#include "includes/convection_diffusion_sediment_settings.h"
 #include "includes/radiation_settings.h"
 #include "utilities/quaternion.h"
 
@@ -149,6 +150,10 @@ void  AddContainersToPython(pybind11::module& m)
     py::class_<Variable<ConvectionDiffusionSettings::Pointer > ,VariableData>(m,"ConvectionDiffusionSettingsVariable")
     .def("__str__", PrintObject<Variable<ConvectionDiffusionSettings::Pointer >>)
     ;
+    
+    py::class_<Variable<ConvectionDiffusionSedimentSettings::Pointer > ,VariableData>(m,"ConvectionDiffusionSediemntSettingsVariable")
+    .def("__str__", PrintObject<Variable<ConvectionDiffusionSedimentSettings::Pointer >>)
+    ;
 
     py::class_<Variable<RadiationSettings::Pointer > ,VariableData>(m,"RadiationSettingsVariable")
     .def("__str__", PrintObject<Variable<RadiationSettings::Pointer >>)
@@ -172,6 +177,7 @@ void  AddContainersToPython(pybind11::module& m)
     DataValueContainerIndexingUtility< DataValueContainerBinderType, DataValueContainer, Variable<Vector> >(DataValueBinder);
     DataValueContainerIndexingUtility< DataValueContainerBinderType, DataValueContainer, Variable<Matrix> >(DataValueBinder);
     DataValueContainerIndexingUtility< DataValueContainerBinderType, DataValueContainer, Variable<ConvectionDiffusionSettings::Pointer> >(DataValueBinder);
+    DataValueContainerIndexingUtility< DataValueContainerBinderType, DataValueContainer, Variable<ConvectionDiffusionSedimentSettings::Pointer> >(DataValueBinder);
     DataValueContainerIndexingUtility< DataValueContainerBinderType, DataValueContainer, Variable<RadiationSettings::Pointer> >(DataValueBinder);
     DataValueContainerIndexingUtility< DataValueContainerBinderType, DataValueContainer, Variable<Quaternion<double>> >(DataValueBinder);
     DataValueContainerIndexingUtility< DataValueContainerBinderType, DataValueContainer, Variable<std::string> >(DataValueBinder);
@@ -492,6 +498,11 @@ void  AddContainersToPython(pybind11::module& m)
     KRATOS_REGISTER_IN_PYTHON_VARIABLE(m, ANGULAR_VELOCITY_PERIOD )
     KRATOS_REGISTER_IN_PYTHON_VARIABLE(m, IDENTIFIER )
 
+    //for Sediment transport application
+    KRATOS_REGISTER_IN_PYTHON_VARIABLE(m, C_SUSP)
+    KRATOS_REGISTER_IN_PYTHON_3D_VARIABLE_WITH_COMPONENTS(m, C_SUSP_GRADIENT )
+    KRATOS_REGISTER_IN_PYTHON_VARIABLE(m, C_SUSP_FLUX)
+    KRATOS_REGISTER_IN_PYTHON_VARIABLE(m, C_SUSP_FACE_FLUX)
 
     //for xfem application
     KRATOS_REGISTER_IN_PYTHON_VARIABLE(m, CRACK_OPENING )
@@ -631,7 +642,7 @@ void  AddContainersToPython(pybind11::module& m)
     .def("GetReactionVariable",&ConvectionDiffusionSettings::GetReactionVariable, py::return_value_policy::reference_internal )
     .def("GetReactionGradientVariable",&ConvectionDiffusionSettings::GetReactionGradientVariable, py::return_value_policy::reference_internal )
 
-    .def("IsDefinedDensityVariable",&ConvectionDiffusionSettings::IsDefinedDensityVariable)
+        .def("IsDefinedDensityVariable",&ConvectionDiffusionSettings::IsDefinedDensityVariable)
     .def("IsDefinedDiffusionVariable",&ConvectionDiffusionSettings::IsDefinedDiffusionVariable)
     .def("IsDefinedUnknownVariable",&ConvectionDiffusionSettings::IsDefinedUnknownVariable)
     .def("IsDefinedVolumeSourceVariable",&ConvectionDiffusionSettings::IsDefinedVolumeSourceVariable)
@@ -645,6 +656,54 @@ void  AddContainersToPython(pybind11::module& m)
     .def("IsDefinedTransferCoefficientVariable",&ConvectionDiffusionSettings::IsDefinedTransferCoefficientVariable)
     .def("IsDefinedReactionVariable",&ConvectionDiffusionSettings::IsDefinedReactionVariable)
     .def("IsDefinedReactionGradientVariable",&ConvectionDiffusionSettings::IsDefinedReactionGradientVariable)
+    ;
+
+    py::class_< ConvectionDiffusionSedimentSettings, ConvectionDiffusionSedimentSettings::Pointer >	(m,"ConvectionDiffusionSedimentSettings")
+    .def(py::init<	>() )
+    .def("SetDensityVariable",&ConvectionDiffusionSedimentSettings::SetDensityVariable)
+    .def("SetDiffusionVariable",&ConvectionDiffusionSedimentSettings::SetDiffusionVariable)
+    .def("SetUnknownVariable",&ConvectionDiffusionSedimentSettings::SetUnknownVariable)
+    .def("SetVolumeSourceVariable",&ConvectionDiffusionSedimentSettings::SetVolumeSourceVariable)
+    .def("SetSurfaceSourceVariable",&ConvectionDiffusionSedimentSettings::SetSurfaceSourceVariable)
+    .def("SetProjectionVariable",&ConvectionDiffusionSedimentSettings::SetProjectionVariable)
+    .def("SetMeshVelocityVariable",&ConvectionDiffusionSedimentSettings::SetMeshVelocityVariable)
+    .def("SetConvectionVariable",&ConvectionDiffusionSedimentSettings::SetConvectionVariable)
+    .def("SetGradientVariable",&ConvectionDiffusionSedimentSettings::SetGradientVariable)
+    .def("SetTransferCoefficientVariable",&ConvectionDiffusionSedimentSettings::SetTransferCoefficientVariable)
+    .def("SetSpecificHeatVariable",&ConvectionDiffusionSedimentSettings::SetSpecificHeatVariable)
+    .def("SetVelocityVariable",&ConvectionDiffusionSedimentSettings::SetVelocityVariable)
+    .def("SetReactionVariable",&ConvectionDiffusionSedimentSettings::SetReactionVariable)
+    .def("SetReactionGradientVariable",&ConvectionDiffusionSedimentSettings::SetReactionGradientVariable)
+
+    .def("GetDensityVariable",&ConvectionDiffusionSedimentSettings::GetDensityVariable, py::return_value_policy::reference_internal )
+    .def("GetDiffusionVariable",&ConvectionDiffusionSedimentSettings::GetDiffusionVariable, py::return_value_policy::reference_internal )
+    .def("GetUnknownVariable",&ConvectionDiffusionSedimentSettings::GetUnknownVariable, py::return_value_policy::reference_internal )
+    .def("GetVolumeSourceVariable",&ConvectionDiffusionSedimentSettings::GetVolumeSourceVariable, py::return_value_policy::reference_internal )
+    .def("GetSurfaceSourceVariable",&ConvectionDiffusionSedimentSettings::GetSurfaceSourceVariable, py::return_value_policy::reference_internal )
+    .def("GetProjectionVariable",&ConvectionDiffusionSedimentSettings::GetProjectionVariable, py::return_value_policy::reference_internal )
+    .def("GetMeshVelocityVariable",&ConvectionDiffusionSedimentSettings::GetMeshVelocityVariable, py::return_value_policy::reference_internal )
+    .def("GetConvectionVariable",&ConvectionDiffusionSedimentSettings::GetConvectionVariable, py::return_value_policy::reference_internal )
+    .def("GetGradientVariable",&ConvectionDiffusionSedimentSettings::GetGradientVariable, py::return_value_policy::reference_internal )
+    .def("GetTransferCoefficientVariable",&ConvectionDiffusionSedimentSettings::GetTransferCoefficientVariable, py::return_value_policy::reference_internal)
+    .def("GetSpecificHeatVariable",&ConvectionDiffusionSedimentSettings::GetSpecificHeatVariable, py::return_value_policy::reference_internal )
+    .def("GetVelocityVariable",&ConvectionDiffusionSedimentSettings::GetVelocityVariable, py::return_value_policy::reference_internal )
+    .def("GetReactionVariable",&ConvectionDiffusionSedimentSettings::GetReactionVariable, py::return_value_policy::reference_internal )
+    .def("GetReactionGradientVariable",&ConvectionDiffusionSedimentSettings::GetReactionGradientVariable, py::return_value_policy::reference_internal )
+
+        .def("IsDefinedDensityVariable",&ConvectionDiffusionSedimentSettings::IsDefinedDensityVariable)
+    .def("IsDefinedDiffusionVariable",&ConvectionDiffusionSedimentSettings::IsDefinedDiffusionVariable)
+    .def("IsDefinedUnknownVariable",&ConvectionDiffusionSedimentSettings::IsDefinedUnknownVariable)
+    .def("IsDefinedVolumeSourceVariable",&ConvectionDiffusionSedimentSettings::IsDefinedVolumeSourceVariable)
+    .def("IsDefinedSurfaceSourceVariable",&ConvectionDiffusionSedimentSettings::IsDefinedSurfaceSourceVariable)
+    .def("IsDefinedProjectionVariable",&ConvectionDiffusionSedimentSettings::IsDefinedProjectionVariable)
+    .def("IsDefinedMeshVelocityVariable",&ConvectionDiffusionSedimentSettings::IsDefinedMeshVelocityVariable)
+    .def("IsDefinedConvectionVariable",&ConvectionDiffusionSedimentSettings::IsDefinedConvectionVariable)
+    .def("IsDefinedGradientVariable",&ConvectionDiffusionSedimentSettings::IsDefinedGradientVariable)
+    .def("IsDefinedSpecificHeatVariable",&ConvectionDiffusionSedimentSettings::IsDefinedSpecificHeatVariable)
+    .def("IsDefinedVelocityVariable",&ConvectionDiffusionSedimentSettings::IsDefinedVelocityVariable)
+    .def("IsDefinedTransferCoefficientVariable",&ConvectionDiffusionSedimentSettings::IsDefinedTransferCoefficientVariable)
+    .def("IsDefinedReactionVariable",&ConvectionDiffusionSedimentSettings::IsDefinedReactionVariable)
+    .def("IsDefinedReactionGradientVariable",&ConvectionDiffusionSedimentSettings::IsDefinedReactionGradientVariable)
     ;
 
     py::class_< RadiationSettings, RadiationSettings::Pointer>	(m,"RadiationSettings")
@@ -666,6 +725,7 @@ void  AddContainersToPython(pybind11::module& m)
     .def("GetMeshVelocityVariable",&RadiationSettings::GetMeshVelocityVariable, py::return_value_policy::reference_internal )
     ;
     KRATOS_REGISTER_IN_PYTHON_VARIABLE(m,CONVECTION_DIFFUSION_SETTINGS)
+    KRATOS_REGISTER_IN_PYTHON_VARIABLE(m,CONVECTION_DIFFUSION_SEDIMENT_SETTINGS)
     KRATOS_REGISTER_IN_PYTHON_VARIABLE(m,RADIATION_SETTINGS)
 }
 } // namespace Kratos::Python.

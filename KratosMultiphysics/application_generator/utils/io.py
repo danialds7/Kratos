@@ -65,10 +65,10 @@ def CheckNameAvail(appsdir, appname):
 def GetApplicationsDirectory():
     ''' Return the path to the applications directory '''
 
-    return os.path.dirname(os.path.realpath(__file__)) + "/../../../../applications/"
+    return os.path.dirname(os.path.realpath(__file__)) + "/../applications/"
 
 
 def GetKratosDirectory():
     ''' Return the path to the applications directory '''
 
-    return os.path.dirname(os.path.realpath(__file__)) + "/../../../../kratos/"
+    return os.path.dirname(os.path.realpath(__file__)) + "/../kratos/"

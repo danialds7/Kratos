@@ -267,16 +267,16 @@ class NavierStokesTwoFluidsHydraulicSolver(FluidSolver):
         self._ComputeVolumeError()
 
         if self.artificial_viscosity:
-            start_time = time.time()
+            #start_time = time.time()
             KratosFluidHydraulics.HydraulicFluidAuxiliaryUtilities.CalculateArtificialViscosity(
                 self.main_model_part, self.artificial_limiter_coefficient)
-            end_time = time.time()
-            KratosMultiphysics.Logger.PrintInfo(self.__class__.__name__, f"CalculateArtificialViscosity (C++) took {end_time - start_time:.6f} seconds.")
+            #end_time = time.time()
+            #KratosMultiphysics.Logger.PrintInfo(self.__class__.__name__, f"CalculateArtificialViscosity (C++) took {end_time - start_time:.6f} seconds.")
 
-            start_time = time.time()
-            self.__CalculateArtificialViscosity()
-            end_time = time.time()
-            KratosMultiphysics.Logger.PrintInfo(self.__class__.__name__, f"__CalculateArtificialViscosity (Python) took {end_time - start_time:.6f} seconds.")
+            #start_time = time.time()
+            #self.__CalculateArtificialViscosity()
+            #end_time = time.time()
+            #KratosMultiphysics.Logger.PrintInfo(self.__class__.__name__, f"__CalculateArtificialViscosity (Python) took {end_time - start_time:.6f} seconds.")
         # Initialize the solver current step
         self._GetSolutionStrategy().InitializeSolutionStep()
 

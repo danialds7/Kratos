@@ -133,7 +133,7 @@ class ApplicationGenerator(TemplateRule):
 
         root = os.path.dirname(os.path.realpath(__file__)) + "/"
 
-        tpldir = root + "../../templates/" + "template_application"
+        tpldir = "/opt/Kratos/kratos/templates/template_application"
         appdir = self._appDir + self._nameCamel + 'Application'
 
         # TODO: Catch the exception
@@ -237,7 +237,7 @@ class ApplicationGenerator(TemplateRule):
         # Generate elements
         root = os.path.dirname(os.path.realpath(__file__)) + "/"
 
-        srcpath = root + "../../templates/" + self._classTemplatePath[entityType][0]
+        srcpath = "/opt/Kratos/kratos/templates/" + self._classTemplatePath[entityType][0]
         dstpath = self._appDir + self._nameCamel + 'Application/' + self._classTemplatePath[entityType][1]
 
         if not os.path.exists(dstpath):
