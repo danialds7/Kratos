@@ -313,8 +313,6 @@ void HydraulicFluidAuxiliaryUtilities::CalculateArtificialViscosity(
     const auto &properties_1 = rModelPart.GetProperties(1);
     const double water_dynamic_viscosity_max = artificial_limiter_coefficient * properties_1.GetValue(DYNAMIC_VISCOSITY);
 
-    static int total_pos_nodes = 0;
-    static int total_neg_nodes = 0;
 
     block_for_each(rModelPart.Elements(), [&](Element &rElement) {
 
@@ -347,18 +345,9 @@ void HydraulicFluidAuxiliaryUtilities::CalculateArtificialViscosity(
         {
             elem_artificial_viscosity = 0.0;
         }
-        // Accumulate the total number of positive and negative nodes
-        total_pos_nodes += pos_nodes;
-        total_neg_nodes += neg_nodes;
-
-        // Print the total number of positive and negative nodes
         
         rElement.SetValue(ARTIFICIAL_DYNAMIC_VISCOSITY, elem_artificial_viscosity);
     });
-        KRATOS_INFO("in c++ : HydraulicFluidAuxiliaryUtilities") << "Total positive nodes: " << total_pos_nodes << std::endl;
-        KRATOS_INFO("In c++ : HydraulicFluidAuxiliaryUtilities") << "Total negative nodes: " << total_neg_nodes << std::endl;
-        total_pos_nodes = 0;
-        total_neg_nodes = 0;
 }       
 
 } // namespace Kratos
