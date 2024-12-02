@@ -121,8 +121,12 @@ namespace Kratos
             {
                 alpha = mThermalExpansionCoefficient;
             }
-
+            
             iNode->FastGetSolutionStepValue(BODY_FORCE) = (1. - alpha*(temperature-ambient_temperature))*mrGravity;
+            //if (distance > 0.0) // air
+            //{
+             //   iNode->FastGetSolutionStepValue(BODY_FORCE) = ZeroVector(3);
+            //}
         }
 
     }
