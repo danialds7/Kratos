@@ -267,13 +267,13 @@ namespace Kratos
 				  //active_convection=true;
 			}
 
-			if (IsDefinedMeshVelocityVariable)
-            {
-				  const Variable<array_1d<double, 3 > >& rMeshVelocityVar = my_settings->GetMeshVelocityVariable();
-				  rVariables.v[i] -= GetGeometry()[i].FastGetSolutionStepValue(rMeshVelocityVar);
-				  rVariables.vold[i] -= GetGeometry()[i].FastGetSolutionStepValue(rMeshVelocityVar,1);
-				  //active_convection=true;
-			}
+			//if (IsDefinedMeshVelocityVariable)
+            //{
+			//	  const Variable<array_1d<double, 3 > >& rMeshVelocityVar = my_settings->GetMeshVelocityVariable();
+			//	  rVariables.v[i] -= GetGeometry()[i].FastGetSolutionStepValue(rMeshVelocityVar);
+			//	  rVariables.vold[i] -= GetGeometry()[i].FastGetSolutionStepValue(rMeshVelocityVar,1);
+			//	  //active_convection=true;
+			//}
 
 			if (IsDefinedDensityVariable)
 			{
