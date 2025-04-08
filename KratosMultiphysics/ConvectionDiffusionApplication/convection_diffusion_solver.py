@@ -108,7 +108,7 @@ class ConvectionDiffusionSolver(PythonSolver):
             "convection_diffusion_variables" : {
                 "density_variable"              : "DENSITY",
                 "diffusion_variable"            : "CONDUCTIVITY",
-                "unknown_variable"              : "TEMPERATURE",
+                "unknown_variable"              : "C_SUSP",
                 "volume_source_variable"        : "HEAT_FLUX",
                 "surface_source_variable"       : "FACE_HEAT_FLUX",
                 "projection_variable"           : "PROJECTED_SCALAR1",

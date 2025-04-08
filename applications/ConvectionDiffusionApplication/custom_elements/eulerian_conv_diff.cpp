@@ -105,6 +105,12 @@ namespace Kratos
         double h = this->ComputeH(DN_DX);
         double numerical_diffusion = 0.0; // DDEHGHAN: numerical diffusion term
         double norm_vel = 0; // ddehghan: initialize norm_vel
+        const double g = 9.81;
+        const double rho_s = 2650.0;      // sediment density [kg/m³]
+        const double rho_f = 1000.0;      // fluid density [kg/m³]
+        const double mu = 0.001;          // dynamic viscosity [Pa·s]
+        const double d = 0.0001;          // particle diameter [m]
+        double settling_velocity = g * (rho_s - rho_f) * d * d / (18.0 * mu); // 2 => ddehghan: settling velocity in z direction using stokes law for d50<1e-4
         //Computing the divergence
         for (unsigned int i = 0; i < TNumNodes; i++)
         {
@@ -129,7 +135,12 @@ namespace Kratos
             for (unsigned int i = 0; i < TNumNodes; i++)
             {
                  for(unsigned int k=0; k<TDim; k++)
+                 {
                     vel_gauss[k] += N[i]*(Variables.v[i][k]*Variables.theta + Variables.vold[i][k]*(1.0-Variables.theta));  
+                    if  (k == 3) {
+                        vel_gauss[k] -= settling_velocity; // 2 => ddehghan: settling velocity in z direction
+                    }
+                 }
             }
             norm_vel = norm_2(vel_gauss);
             array_1d<double, TNumNodes > a_dot_grad = prod(DN_DX, vel_gauss);
