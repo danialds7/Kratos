@@ -137,7 +137,7 @@ namespace Kratos
                  for(unsigned int k=0; k<TDim; k++)
                  {
                     vel_gauss[k] += N[i]*(Variables.v[i][k]*Variables.theta + Variables.vold[i][k]*(1.0-Variables.theta));  
-                    if  (k == 3) {
+                    if  (k == 2) {
                         vel_gauss[k] -= settling_velocity; // 2 => ddehghan: settling velocity in z direction
                     }
                  }

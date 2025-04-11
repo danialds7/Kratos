@@ -85,22 +85,22 @@ namespace Kratos
 
     void BoussinesqForceProcess::ValidateModelPart()
     {
-        // Nodal variables
-        KRATOS_ERROR_IF_NOT( mrModelPart.GetNodalSolutionStepVariablesList().Has(TEMPERATURE) ) <<
-        "\'TEMPERATURE\' variable is not added to the ModelPart nodal data." << std::endl;
+        // // // Nodal variables
+        // // KRATOS_ERROR_IF_NOT( mrModelPart.GetNodalSolutionStepVariablesList().Has(TEMPERATURE) ) <<
+        // // "\'TEMPERATURE\' variable is not added to the ModelPart nodal data." << std::endl;
 
-        KRATOS_ERROR_IF_NOT( mrModelPart.GetNodalSolutionStepVariablesList().Has(BODY_FORCE) ) <<
-        "\'BODY_FORCE\' variable is not added to the ModelPart nodal data." << std::endl;
+        // // KRATOS_ERROR_IF_NOT( mrModelPart.GetNodalSolutionStepVariablesList().Has(BODY_FORCE) ) <<
+        // // "\'BODY_FORCE\' variable is not added to the ModelPart nodal data." << std::endl;
 
-        // Variables in ProcessInfo
-        KRATOS_ERROR_IF_NOT( mrModelPart.GetProcessInfo().Has(AMBIENT_TEMPERATURE) ) <<
-        "In Boussinesq Force Process: \'AMBIENT_TEMPERATURE\' not given in ProcessInfo." << std::endl;
+        // // // Variables in ProcessInfo
+        // // KRATOS_ERROR_IF_NOT( mrModelPart.GetProcessInfo().Has(AMBIENT_TEMPERATURE) ) <<
+        // // "In Boussinesq Force Process: \'AMBIENT_TEMPERATURE\' not given in ProcessInfo." << std::endl;
     }
 
     void BoussinesqForceProcess::AssignBoussinesqForce()
     {
         const double ambient_temperature = mrModelPart.GetProcessInfo().GetValue(AMBIENT_TEMPERATURE);
-        KRATOS_ERROR_IF( ambient_temperature <= 0.0 ) <<
+        KRATOS_ERROR_IF( ambient_temperature < 0.0 ) <<
         "In Boussinesq Force Process: \'AMBIENT_TEMPERATURE\' obtained from ProcessInfo is incorrect." << std::endl <<
         "Expected a positive double, got " << ambient_temperature << std::endl;
 
@@ -109,7 +109,7 @@ namespace Kratos
         for (int i = 0; i < num_nodes; ++i)
         {
             ModelPart::NodeIterator iNode = mrModelPart.NodesBegin() + i;
-            double temperature = iNode->FastGetSolutionStepValue(TEMPERATURE);
+            //double temperature = iNode->FastGetSolutionStepValue(TEMPERATURE);
             double distance = iNode->FastGetSolutionStepValue(DISTANCE);
 
             double alpha;
@@ -122,7 +122,7 @@ namespace Kratos
                 alpha = mThermalExpansionCoefficient;
             }
             
-            iNode->FastGetSolutionStepValue(BODY_FORCE) = (1. - alpha*(temperature-ambient_temperature))*mrGravity;
+            iNode->FastGetSolutionStepValue(BODY_FORCE) = mrGravity;
 
         }
 

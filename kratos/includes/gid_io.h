@@ -675,8 +675,12 @@ public:
                             SolutionTag, GiD_Scalar,
                             GiD_OnNodes, NULL, NULL, 0, NULL );
         for ( auto it_node = rNodes.begin();  it_node != rNodes.end() ; ++it_node)
-            GiD_fWriteScalar( mResultFile, it_node->Id(), it_node->GetSolutionStepValue(rVariable,
-                                SolutionStepNumber) );
+        {
+                const double distance = it_node->GetSolutionStepValue(DISTANCE, SolutionStepNumber);
+                if (distance <= 1e-05) {
+                    GiD_fWriteScalar( mResultFile, it_node->Id(), it_node->GetSolutionStepValue(rVariable, SolutionStepNumber) );
+                }
+        }
         GiD_fEndResult(mResultFile);
 
         Timer::Stop("Writing Results");
@@ -726,7 +730,11 @@ public:
         {
             const array_1d<double, 3>& temp = it_node->GetSolutionStepValue( rVariable,
                                         SolutionStepNumber );
-            GiD_fWriteVector( mResultFile, it_node->Id(), temp[0], temp[1], temp[2] );
+                const double distance = it_node->GetSolutionStepValue(DISTANCE, SolutionStepNumber);
+                if (distance <= 1e-05) {
+                    GiD_fWriteVector( mResultFile, it_node->Id(), temp[0], temp[1], temp[2] );
+                }
+            
         }
         GiD_fEndResult(mResultFile);
 
