@@ -313,6 +313,12 @@ namespace Kratos
             {
                 const Variable<double>& rVolumeSourceVar = my_settings->GetVolumeSourceVariable();
                 rVariables.volumetric_source[i] += GetGeometry()[i].FastGetSolutionStepValue(rVolumeSourceVar);
+
+                // Print the volumetric source for node 53185
+                if (GetGeometry()[i].Id() == 53185)
+                {
+                    std::cout << "Volumetric source for node 53185: " << rVariables.volumetric_source[i] << std::endl;
+                }
             }
         }
 

@@ -19,6 +19,7 @@
 // Project includes
 #include "processes/find_global_nodal_neighbours_process.h"
 #include "includes/global_pointer_variables.h"
+#include "containers/global_pointers_vector.h"
 #include "utilities/parallel_utilities.h"
 #include "utilities/reduction_utilities.h"
 #include "spatial_containers/bins_dynamic.h"
@@ -26,9 +27,11 @@
 #include "utilities/divide_triangle_3d_3.h"
 #include "../../FluidDynamicsApplication/custom_utilities/fluid_auxiliary_utilities.h"
 #include "../../FluidDynamicsApplication/fluid_dynamics_application_variables.h"
+#include "includes/variables.h"
 
 // Application includes
 #include "hydraulic_fluid_auxiliary_utilities.h"
+#include "../../FluidDynamicsApplication/custom_utilities/fluid_mesh_utilities.h"
 
 namespace Kratos
 {
@@ -243,7 +246,8 @@ void HydraulicFluidAuxiliaryUtilities::SetInletVelocity(
         array_1d<double,3> InletVelocity;
     };
 
-    block_for_each(rModelPart.Nodes(), AuxTLS(), [&](NodeType &rNode, AuxTLS &rTLS)
+    AuxTLS tls; // Explicitly initialize the AuxTLS object
+    block_for_each(rModelPart.Nodes(), tls, [&](NodeType &rNode, AuxTLS &rTLS)
     {
         // Get TLS variables
         auto& inlet_norm = rTLS.InletNorm;
@@ -349,5 +353,36 @@ void HydraulicFluidAuxiliaryUtilities::CalculateArtificialViscosity(
         rElement.SetValue(ARTIFICIAL_DYNAMIC_VISCOSITY, elem_artificial_viscosity);
     });
 }       
+
+void HydraulicFluidAuxiliaryUtilities::FindElementsNeighbouringConditions(
+    ModelPart &rModelPart,
+    const Flags &rConditionFlag)
+{
+    // Use the utility to assign neighbor elements to conditions
+    const bool check_repeated_conditions = true;
+    FluidMeshUtilities::AssignNeighbourElementsToConditions(rModelPart, check_repeated_conditions);
+
+    // Iterate through conditions to print and assign the parent element
+    for (auto& rCondition : rModelPart.Conditions()) {
+        KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") << "Checking condition: " << rCondition.Id() << " with flag: " << rConditionFlag << std::endl;
+        if (rCondition.Is(rConditionFlag)) {
+            const auto& neighbour_elements = rCondition.GetValue(NEIGHBOUR_ELEMENTS);
+
+            // Ensure there is at least one neighboring element
+            KRATOS_ERROR_IF(neighbour_elements.size() == 0) 
+                << "Condition ID: " << rCondition.Id() << " has no neighboring elements." << std::endl;
+
+            // Print the condition ID and its parent element
+            const unsigned int rank = rModelPart.GetCommunicator().MyPID();
+            KRATOS_INFO_IF("HydraulicFluidAuxiliaryUtilities", rank == 0)
+                << "Condition ID: " << rCondition.Id()
+                << " has parent element ID: " << neighbour_elements[0].Id() << std::endl;
+        }
+    }
+
+    const unsigned int rank = rModelPart.GetCommunicator().MyPID();
+    KRATOS_INFO_IF("HydraulicFluidAuxiliaryUtilities", rank == 0)
+        << "Elements neighboring conditions search and assignment finished." << std::endl;
+}
 
 } // namespace Kratos

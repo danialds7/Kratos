@@ -35,7 +35,7 @@ namespace Kratos
 ///@name Kratos classes
 ///@{
 
-class KRATOS_API(FLUID_DYNAMICS_HYDRAULICS_APPLICATION) HydraulicFluidAuxiliaryUtilities
+class KRATOS_API(KRATOS_CORE) HydraulicFluidAuxiliaryUtilities
 {
 public:
     ///@name Type Definitions
@@ -123,6 +123,15 @@ public:
      * @param artificial_limiter_coefficient Coefficient for the artificial viscosity limiter
      */
     static void CalculateArtificialViscosity(ModelPart &rModelPart, double artificial_limiter_coefficient);
+
+    /**
+     * @brief Method to find elements neighboring conditions
+     * @param rModelPart Model Part
+     * @param rConditionFlag Flag that marks the conditions
+     */
+    static void FindElementsNeighbouringConditions(
+        ModelPart &rModelPart,
+        const Flags &rConditionFlag);
 
     ///@}
 

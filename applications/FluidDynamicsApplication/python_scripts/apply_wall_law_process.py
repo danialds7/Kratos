@@ -139,7 +139,7 @@ class ApplyWallLawProcess(KratosMultiphysics.Process):
     def ExecuteInitializeSolutionStep(self):
         # If required (e.g. moving boundaries) recalculate the nodal normals
         if self.settings["calculate_normals_at_each_step"].GetBool():
-            model_part = self.model.GetSubModelPart(self.settings["model_part_name"].GetString())
+            model_part = self.model.GetModelPart(self.settings["model_part_name"].GetString())
             domain_size = model_part.ProcessInfo[KratosMultiphysics.DOMAIN_SIZE]
             KratosMultiphysics.NormalCalculationUtils().CalculateOnSimplex(model_part, domain_size) #FIXME: This may interact with the nodal normals of slip boundaries (e.g. floor-wall in a 3D channel)
 
