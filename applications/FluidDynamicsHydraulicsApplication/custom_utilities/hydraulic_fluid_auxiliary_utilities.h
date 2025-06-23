@@ -133,6 +133,60 @@ public:
         ModelPart &rModelPart,
         const Flags &rConditionFlag);
 
+    /**
+     * @brief Calculate erosion rate for a fluid element at the interface
+     * @details This function calculates the erosion rate using Shields parameter
+     * and threshold conditions based on Brownlie (1981) and van Rijn formulations.
+     * @param rFluidElement The fluid element at the interface
+     * @param rInterfaceCondition The interface condition
+     * @param D50 Median particle diameter (m)
+     * @param SedimentDensity Sediment density (kg/m³)
+     * @return Volumetric erosion rate (m³/s)
+     */
+    static double CalculateErosionRate(
+        const Element& rFluidElement,
+        const Condition& rInterfaceCondition,
+        const double D50 = 1e-04,
+        const double SedimentDensity = 2650.0);
+
+    /**
+     * @brief Process erosion of a solid element
+     * @details This function processes the erosion of a solid element by:
+     * - Activating the solid element (converting it to fluid)
+     * - Transferring averaged values from connected fluid element
+     * - Calculating proper distance field values
+     * - Creating new interface conditions for newly exposed solid faces
+     * @param rSolidElement The solid element to be eroded
+     * @param rSlipBedModelPart The slip bed model part containing interface conditions
+     * @param rInterfaceCondition The interface condition being processed
+     * @param rComputingModelPart The main computing model part
+     * @param rConnectedFluidElement Connected fluid element for value transfer (can be null)
+     * @return Number of new interface conditions created
+     */
+    static int ProcessElementErosion(
+        Element& rSolidElement,
+        ModelPart& rSlipBedModelPart,
+        const Condition& rInterfaceCondition,
+        ModelPart& rComputingModelPart,
+        const Element* pConnectedFluidElement = nullptr);
+
+    /**
+     * @brief Process deposition of a fluid element
+     * @details This function processes the deposition of a fluid element by:
+     * - Deactivating the fluid element
+     * - Adding all its faces (except the original interface face) as new conditions
+     * @param rFluidElement The fluid element to be deactivated for deposition
+     * @param rSlipBedModelPart The slip bed model part containing interface conditions
+     * @param rInterfaceCondition The interface condition being processed
+     * @param rComputingModelPart The main computing model part
+     * @return Number of new interface conditions created
+     */
+    static int ProcessElementDeposition(
+        Element& rFluidElement,
+        ModelPart& rSlipBedModelPart,
+        const Condition& rInterfaceCondition,
+        ModelPart& rComputingModelPart);
+
     ///@}
 
 private :

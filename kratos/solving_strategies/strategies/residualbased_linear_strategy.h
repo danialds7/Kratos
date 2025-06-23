@@ -555,7 +555,7 @@ public:
                 KRATOS_INFO_IF("ResidualBasedLinearStrategy", BaseType::GetEchoLevel() > 0) << "System Matrix Resize Time: " << system_matrix_resize_time << std::endl;
             }
 
-            KRATOS_INFO_IF("ResidualBasedLinearStrategy", BaseType::GetEchoLevel() > 0) << "System Construction Time: " << system_construction_time << std::endl;
+            //KRATOS_INFO_IF("ResidualBasedLinearStrategy", BaseType::GetEchoLevel() > 0) << "System Construction Time: " << system_construction_time << std::endl;
 
             TSystemMatrixType& rA  = *mpA;
             TSystemVectorType& rDx = *mpDx;

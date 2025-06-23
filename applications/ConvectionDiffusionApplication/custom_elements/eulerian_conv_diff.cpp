@@ -158,6 +158,7 @@ namespace Kratos
         }
         
         numerical_diffusion = Variables.density * Variables.specific_heat *h * norm_vel/ 2.0; // DDEHGHAN: isotropic diffusion term
+
         //adding the second and third term in the formulation
         noalias(rLeftHandSideMatrix)  = (Variables.dt_inv*Variables.density*Variables.specific_heat + Variables.theta*Variables.beta*Variables.div_v)*aux1;
         noalias(rRightHandSideVector) = (Variables.dt_inv*Variables.density*Variables.specific_heat - (1.0-Variables.theta)*Variables.beta*Variables.div_v)*prod(aux1,Variables.phi_old);
@@ -253,14 +254,14 @@ namespace Kratos
 
         //////storing locally the flags to avoid repeated check in the nodal loops
         const bool IsDefinedVelocityVariable = my_settings->IsDefinedVelocityVariable();
-        const bool IsDefinedMeshVelocityVariable = my_settings->IsDefinedMeshVelocityVariable();
+        // const bool IsDefinedMeshVelocityVariable = my_settings->IsDefinedMeshVelocityVariable(); // Currently unused - commented out mesh velocity section
         const bool IsDefinedDensityVariable = my_settings->IsDefinedDensityVariable();
         const bool IsDefinedSpecificHeatVariableVariable = my_settings->IsDefinedSpecificHeatVariable();
         const bool IsDefinedDiffusionVariable = my_settings->IsDefinedDiffusionVariable();
         const bool IsDefinedVolumeSourceVariable = my_settings->IsDefinedVolumeSourceVariable();
 
         const Variable<double>& rUnknownVar = my_settings->GetUnknownVariable();
-
+        
         for (unsigned int i = 0; i < TNumNodes; i++)
         {
             rVariables.phi[i] = GetGeometry()[i].FastGetSolutionStepValue(rUnknownVar);
@@ -315,10 +316,16 @@ namespace Kratos
                 rVariables.volumetric_source[i] += GetGeometry()[i].FastGetSolutionStepValue(rVolumeSourceVar);
 
                 // Print the volumetric source for node 53185
-                if (GetGeometry()[i].Id() == 53185)
-                {
-                    std::cout << "Volumetric source for node 53185: " << rVariables.volumetric_source[i] << std::endl;
-                }
+                // if (GetGeometry()[i].Id() == 659)
+                // {
+                //     std::cout << "Volumetric source for node 659: " << rVariables.volumetric_source[i] << std::endl;
+                // }
+                // if (GetGeometry()[i].Id() == 857)
+                // {
+                //     std::cout << "Volumetric source for node 857: " << rVariables.volumetric_source[i] << std::endl;
+                // }
+   
+
             }
         }
 

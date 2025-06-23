@@ -122,9 +122,26 @@ double FluidAuxiliaryUtilities::CalculateFluidNegativeVolume(const ModelPart& rM
             // Split element check
             double elem_volume = 0.0;
             if (IsSplit(rNodalDistancesTLS)) {
-                // Compute negative volume fraction with the modified shape functions
-                auto p_mod_sh_func = mod_sh_func_factory(rElement.pGetGeometry(), rNodalDistancesTLS);
-                elem_volume = p_mod_sh_func->ComputeNegativeSideDomainSize();
+                try {
+                    // Compute negative volume fraction with the modified shape functions
+                    auto p_mod_sh_func = mod_sh_func_factory(rElement.pGetGeometry(), rNodalDistancesTLS);
+                    elem_volume = p_mod_sh_func->ComputeNegativeSideDomainSize();
+                } catch (const std::exception& e) {
+                    // Debug output for problematic element
+                    std::stringstream debug_msg;
+                    debug_msg << "Error in element " << rElement.Id() << " with nodal distances: [";
+                    for (std::size_t i = 0; i < rNodalDistancesTLS.size(); ++i) {
+                        debug_msg << rNodalDistancesTLS[i];
+                        if (i < rNodalDistancesTLS.size() - 1) debug_msg << ", ";
+                    }
+                    debug_msg << "] and node IDs: [";
+                    for (std::size_t i = 0; i < r_geom.PointsNumber(); ++i) {
+                        debug_msg << r_geom[i].Id();
+                        if (i < r_geom.PointsNumber() - 1) debug_msg << ", ";
+                    }
+                    debug_msg << "]. Exception: " << e.what();
+                    KRATOS_ERROR << debug_msg.str() << std::endl;
+                }
             } else if (IsNegative(rNodalDistancesTLS)) {
                 // If the element is negative, compute the volume from geometry
                 elem_volume = r_geom.DomainSize();

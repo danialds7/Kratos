@@ -28,6 +28,7 @@
 #include "../../FluidDynamicsApplication/custom_utilities/fluid_auxiliary_utilities.h"
 #include "../../FluidDynamicsApplication/fluid_dynamics_application_variables.h"
 #include "includes/variables.h"
+#include "includes/define.h"
 
 // Application includes
 #include "hydraulic_fluid_auxiliary_utilities.h"
@@ -35,6 +36,19 @@
 
 namespace Kratos
 {
+typedef std::size_t SizeType;
+typedef std::size_t IndexType;
+
+struct VectorHasher {
+    std::size_t operator()(const std::vector<IndexType>& v) const {
+        std::size_t seed = v.size();
+        for (auto& i : v) {
+            seed ^= i + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        }
+        return seed;
+    }
+};
+
 double HydraulicFluidAuxiliaryUtilities::CalculateWettedPetimeter(
     ModelPart &rModelPart,
     const Flags &rSkinFlag,
@@ -383,6 +397,562 @@ void HydraulicFluidAuxiliaryUtilities::FindElementsNeighbouringConditions(
     const unsigned int rank = rModelPart.GetCommunicator().MyPID();
     KRATOS_INFO_IF("HydraulicFluidAuxiliaryUtilities", rank == 0)
         << "Elements neighboring conditions search and assignment finished." << std::endl;
+}
+
+double HydraulicFluidAuxiliaryUtilities::CalculateErosionRate(
+    const Element& rFluidElement,
+    const Condition& rInterfaceCondition,
+    const double D50,
+    const double SedimentDensity)
+{
+    KRATOS_TRY
+
+    // Physical parameters
+    const double g = 9.81; // Gravity acceleration (m/s²)
+    const double kappa = 0.41; // Von Karman constant
+    
+    // Get fluid element geometry
+    const auto& r_fluid_geom = rFluidElement.GetGeometry();
+    const SizeType n_nodes = r_fluid_geom.PointsNumber();
+    
+    // Initialize fluid properties
+    double rho = 0.0;
+    double mu = 0.0;
+    
+    // Calculate average fluid properties from nodes
+    for (IndexType i_node = 0; i_node < n_nodes; ++i_node) {
+        const auto& r_node = r_fluid_geom[i_node];
+        rho += r_node.FastGetSolutionStepValue(DENSITY);
+        mu += r_node.FastGetSolutionStepValue(DYNAMIC_VISCOSITY);
+    }
+    
+    // Average fluid properties
+    rho /= static_cast<double>(n_nodes);
+    mu /= static_cast<double>(n_nodes);
+    const double nu = mu / rho; // Kinematic viscosity
+    
+    // Submerged specific gravity
+    const double R = SedimentDensity / rho - 1.0;
+    
+    // Calculate particle Reynolds number (Eq. 11)
+    const double Rep = D50 * std::sqrt(R * g * D50) / nu;
+    
+    // Calculate critical Shields stress (Eq. 10 - Brownlie 1981)
+    const double rep_power = std::pow(Rep, -0.6);
+    const double tau_star_c = 0.22 * rep_power + 0.06 * std::pow(10.0, -7.7 * rep_power);
+    
+    // Get interface normal vector
+    array_1d<double, 3> interface_normal;
+    const auto& r_interface_geom = rInterfaceCondition.GetGeometry();
+    r_interface_geom.UnitNormal(interface_normal);
+    
+    // Calculate velocity and distance at interface
+    double vt_total = 0.0; // Tangential velocity component
+    double hk_total = 0.0; // Normal distance from interface
+    
+    for (IndexType i_node = 0; i_node < n_nodes; ++i_node) {
+        const auto& r_node = r_fluid_geom[i_node];
+        const array_1d<double, 3>& velocity = r_node.FastGetSolutionStepValue(VELOCITY);
+        
+        // Calculate tangential velocity component (velocity - normal component)
+        const double v_normal_mag = velocity[0] * interface_normal[0] + 
+                                   velocity[1] * interface_normal[1] + 
+                                   velocity[2] * interface_normal[2];
+        
+        const double velocity_mag_sq = velocity[0] * velocity[0] + 
+                                      velocity[1] * velocity[1] + 
+                                      velocity[2] * velocity[2];
+        
+        const double v_tangential = std::sqrt(std::max(0.0, velocity_mag_sq - v_normal_mag * v_normal_mag));
+        vt_total += v_tangential;
+        
+        // Approximate distance from interface (simplified)
+        // In practice, this should be the actual distance from node to interface
+        hk_total += D50 * 10.0; // Approximation: 10 particle diameters
+    }
+    
+    // Average values
+    const double vt = vt_total / static_cast<double>(n_nodes);
+    const double hk = hk_total / static_cast<double>(n_nodes);
+    
+    // Check for zero velocity or distance
+    if (vt <= 1e-12 || hk <= 1e-12) {
+        return 0.0; // No erosion if no velocity or distance
+    }
+    
+    // Calculate friction velocity using logarithmic wall law (Eq. 13)
+    // u/u* = (1/0.41) * ln(u* * y / nu) + 5.5
+    // Solve iteratively for u*
+    double u_star = 0.1; // Initial guess
+    const int max_iterations = 10;
+    const double tolerance = 1e-8;
+    
+    for (int iter = 0; iter < max_iterations; ++iter) {
+        const double argument = u_star * hk / nu;
+        const double ln_term = (argument > 1e-12) ? std::log(argument) : 0.0;
+        const double f = vt - u_star * (ln_term / kappa + 5.5);
+        
+        if (std::abs(f) < tolerance) {
+            break;
+        }
+        
+        // Derivative
+        const double df_du_star = -(ln_term / kappa + 5.5 + 1.0 / kappa);
+        if (std::abs(df_du_star) > 1e-12) {
+            u_star -= f / df_du_star;
+        }
+        u_star = std::max(u_star, 1e-8); // Keep positive
+    }
+    
+    // Calculate shear stress at D50/2 distance (Eq. 15)
+    const double tau_D50 = mu * u_star / (kappa * D50 / 2.0);
+    
+    // Apply turbulence factor (Eq. 16)
+    const double fk = 2.0; // Turbulence factor - adjust based on your case
+    const double tau_w = fk * tau_D50;
+    
+    // Calculate dimensionless shear stress (Shields parameter, Eq. 17)
+    const double tau_star_s = tau_w / (rho * R * g * D50);
+    
+    // Check if erosion threshold is exceeded
+    if (tau_star_s <= tau_star_c) {
+        return 0.0; // No erosion below threshold
+    }
+    
+    // Calculate dimensionless entrainment rate (Eq. 18 - van Rijn)
+    const double excess_ratio = tau_star_s / tau_star_c - 1.0;
+    const double E_star = 0.015 * (D50 / hk) * 
+                         std::pow(excess_ratio, 1.5) * 
+                         std::pow(Rep, -0.2);
+    
+    // Dimensionalize entrainment rate (Eq. 19)
+    const double E = E_star * std::sqrt(g * R * D50); // m/s
+    
+    // Calculate interface area
+    const double interface_area = r_interface_geom.Area();
+    
+    // Convert to volumetric erosion rate (m³/s)
+    const double erosion_rate = E * interface_area;
+    
+    return erosion_rate;
+
+    KRATOS_CATCH("")
+}
+
+int HydraulicFluidAuxiliaryUtilities::ProcessElementErosion(
+    Element& rSolidElement,
+    ModelPart& rSlipBedModelPart,
+    const Condition& rInterfaceCondition,
+    ModelPart& rComputingModelPart,
+    const Element* pConnectedFluidElement)
+{
+    KRATOS_TRY
+
+    // Activate the solid element (convert to fluid)
+    rSolidElement.Set(FLUID, true);
+
+    // Get interface condition geometry and nodes
+    const auto& r_interface_geom = rInterfaceCondition.GetGeometry();
+    const SizeType n_interface_nodes = r_interface_geom.PointsNumber();
+
+    // Calculate average Z coordinate and distance of interface
+    double interface_z_avg = 0.0;
+    double interface_distance_avg = 0.0;
+    
+    for (IndexType i = 0; i < n_interface_nodes; ++i) {
+        const auto& r_node = r_interface_geom[i];
+        interface_z_avg += r_node.Z();
+        interface_distance_avg += r_node.FastGetSolutionStepValue(DISTANCE);
+    }
+    interface_z_avg /= static_cast<double>(n_interface_nodes);
+    interface_distance_avg /= static_cast<double>(n_interface_nodes);
+
+    // Calculate distance gradient from interface nodes
+    double distance_gradient = 1.0; // Default gradient
+    if (n_interface_nodes >= 2) {
+        const auto& r_node1 = r_interface_geom[0];
+        const auto& r_node2 = r_interface_geom[1];
+        const double z_diff = r_node2.Z() - r_node1.Z();
+        
+        if (std::abs(z_diff) > 1e-10) {
+            const double dist_diff = r_node2.FastGetSolutionStepValue(DISTANCE) - 
+                                   r_node1.FastGetSolutionStepValue(DISTANCE);
+            distance_gradient = dist_diff / z_diff;
+        }
+    }
+
+    // Calculate average values from connected fluid element
+    array_1d<double, 3> avg_velocity = ZeroVector(3);
+    double avg_pressure = 0.0;
+    double avg_c_susp = 0.0;
+
+    if (pConnectedFluidElement != nullptr) {
+        const auto& r_fluid_geom = pConnectedFluidElement->GetGeometry();
+        const SizeType n_fluid_nodes = r_fluid_geom.PointsNumber();
+
+        // Calculate averages from fluid element nodes
+        for (IndexType i_node = 0; i_node < n_fluid_nodes; ++i_node) {
+            const auto& r_node = r_fluid_geom[i_node];
+            const array_1d<double, 3>& velocity = r_node.FastGetSolutionStepValue(VELOCITY);
+            
+            avg_velocity[0] += velocity[0];
+            avg_velocity[1] += velocity[1];
+            avg_velocity[2] += velocity[2];
+            avg_pressure += r_node.FastGetSolutionStepValue(PRESSURE);
+            avg_c_susp += r_node.FastGetSolutionStepValue(C_SUSP);
+        }
+
+        // Calculate final averages
+        const double inv_n_nodes = 1.0 / static_cast<double>(n_fluid_nodes);
+        avg_velocity *= inv_n_nodes;
+        avg_pressure *= inv_n_nodes;
+        avg_c_susp *= inv_n_nodes;
+    }
+    // If no connected fluid element, avg_velocity, avg_pressure, avg_c_susp remain zero
+
+    // Process solid element nodes: free DOFs and assign values
+    auto& r_solid_geom = rSolidElement.GetGeometry(); // Remove const
+    const SizeType n_solid_nodes = r_solid_geom.PointsNumber();
+
+    for (IndexType i_node = 0; i_node < n_solid_nodes; ++i_node) {
+        auto& r_node = r_solid_geom[i_node]; // Get non-const reference
+
+        // Free DOFs
+        r_node.Free(VELOCITY_X);
+        r_node.Free(VELOCITY_Y);
+        r_node.Free(VELOCITY_Z);
+        r_node.Free(PRESSURE);
+        r_node.Free(C_SUSP);
+        r_node.Free(DISTANCE);
+
+        // Assign averaged values (get non-const references)
+        noalias(r_node.FastGetSolutionStepValue(VELOCITY)) = avg_velocity;
+        r_node.FastGetSolutionStepValue(PRESSURE) = avg_pressure;
+        r_node.FastGetSolutionStepValue(C_SUSP) = avg_c_susp;
+
+        // Calculate distance based on vertical distance from interface
+        const double z_diff = r_node.Z() - interface_z_avg;
+        const double calculated_distance = interface_distance_avg + distance_gradient * z_diff;
+        
+        r_node.FastGetSolutionStepValue(DISTANCE) = calculated_distance;
+        r_node.FastGetSolutionStepValue(DISTANCE, 1) = calculated_distance; // Previous time step
+    }
+
+    // Remove flags from interface condition nodes
+    auto& r_interface_geom_non_const = const_cast<Condition&>(rInterfaceCondition).GetGeometry();
+    for (IndexType i = 0; i < n_interface_nodes; ++i) {
+        auto& r_node = r_interface_geom_non_const[i];
+        r_node.Set(SLIP, false);
+    }
+
+    // Get all faces of the eroded solid element (assuming tetrahedra)
+    std::vector<IndexType> node_ids;
+    node_ids.reserve(n_solid_nodes);
+    for (IndexType i = 0; i < n_solid_nodes; ++i) {
+        node_ids.push_back(r_solid_geom[i].Id());
+    }
+
+    // Define faces for tetrahedra (4 triangular faces)
+    std::vector<std::array<IndexType, 3>> faces;
+    if (n_solid_nodes == 4) { // Tetrahedra
+        faces = {
+            {node_ids[0], node_ids[1], node_ids[2]},
+            {node_ids[0], node_ids[1], node_ids[3]},
+            {node_ids[0], node_ids[2], node_ids[3]},
+            {node_ids[1], node_ids[2], node_ids[3]}
+        };
+    }
+
+    // Get original interface face nodes (sorted)
+    std::vector<IndexType> original_interface_nodes;
+    original_interface_nodes.reserve(n_interface_nodes);
+    for (IndexType i = 0; i < n_interface_nodes; ++i) {
+        original_interface_nodes.push_back(r_interface_geom[i].Id());
+    }
+    std::sort(original_interface_nodes.begin(), original_interface_nodes.end());
+
+    // Build face-to-elements mapping for efficient neighbor checking
+    std::unordered_map<std::vector<IndexType>, std::vector<Element::Pointer>, VectorHasher> face_to_elements;
+    
+    for (auto& r_element : rComputingModelPart.Elements()) {
+        const auto& r_elem_geom = r_element.GetGeometry();
+        const SizeType n_elem_nodes = r_elem_geom.PointsNumber();
+        
+        if (n_elem_nodes == 4) { // Process only tetrahedra
+            std::vector<IndexType> elem_node_ids;
+            elem_node_ids.reserve(n_elem_nodes);
+            for (IndexType i = 0; i < n_elem_nodes; ++i) {
+                elem_node_ids.push_back(r_elem_geom[i].Id());
+            }
+            
+            // Generate faces for this element
+            std::vector<std::array<IndexType, 3>> elem_faces = {
+                {elem_node_ids[0], elem_node_ids[1], elem_node_ids[2]},
+                {elem_node_ids[0], elem_node_ids[1], elem_node_ids[3]},
+                {elem_node_ids[0], elem_node_ids[2], elem_node_ids[3]},
+                {elem_node_ids[1], elem_node_ids[2], elem_node_ids[3]}
+            };
+            
+            for (auto& face : elem_faces) {
+                std::vector<IndexType> face_sorted(face.begin(), face.end());
+                std::sort(face_sorted.begin(), face_sorted.end());
+                face_to_elements[face_sorted].push_back(Element::Pointer(&r_element));
+            }
+        }
+    }
+
+    // Check each face of the eroded element for new interface conditions
+    int new_conditions_created = 0;
+    
+    for (const auto& face : faces) {
+        std::vector<IndexType> face_sorted(face.begin(), face.end());
+        std::sort(face_sorted.begin(), face_sorted.end());
+        
+        // Skip the original interface face
+        if (face_sorted == original_interface_nodes) {
+            continue;
+        }
+        
+        // Check if this face is shared with a solid element
+        auto it = face_to_elements.find(face_sorted);
+        if (it == face_to_elements.end()) {
+            continue; // Face not found in mapping
+        }
+        
+        const auto& neighboring_elements = it->second;
+        bool has_solid_neighbor = false;
+        
+        for (const auto& p_neighbor : neighboring_elements) {
+            if (p_neighbor->Id() != rSolidElement.Id() && 
+                (!p_neighbor->Is(FLUID) || !p_neighbor->Is(ACTIVE))) {
+                has_solid_neighbor = true;
+                break;
+            }
+        }
+        
+        // If this face is exposed to solid domain, create new interface condition
+        if (has_solid_neighbor) {
+            // Check if condition already exists
+            bool condition_exists = false;
+            for (const auto& r_condition : rSlipBedModelPart.Conditions()) {
+                const auto& r_cond_geom = r_condition.GetGeometry();
+                std::vector<IndexType> existing_nodes;
+                existing_nodes.reserve(r_cond_geom.PointsNumber());
+                for (IndexType i = 0; i < r_cond_geom.PointsNumber(); ++i) {
+                    existing_nodes.push_back(r_cond_geom[i].Id());
+                }
+                std::sort(existing_nodes.begin(), existing_nodes.end());
+                
+                if (existing_nodes == face_sorted) {
+                    condition_exists = true;
+                    break;
+                }
+            }
+            
+            if (!condition_exists) {
+                // Find new condition ID
+                IndexType max_cond_id = 0;
+                for (const auto& r_condition : rSlipBedModelPart.Conditions()) {
+                    max_cond_id = std::max(max_cond_id, r_condition.Id());
+                }
+                for (const auto& r_condition : rComputingModelPart.Conditions()) {
+                    max_cond_id = std::max(max_cond_id, r_condition.Id());
+                }
+                
+                const IndexType new_cond_id = max_cond_id + 1;
+                
+                // Add nodes to slip bed model part if not present
+                for (IndexType node_id : face_sorted) {
+                    if (!rSlipBedModelPart.HasNode(node_id)) {
+                        auto& r_node = rComputingModelPart.GetNode(node_id);
+                        rSlipBedModelPart.AddNode(&r_node);
+                    }
+                }
+                
+                // Create new condition
+                auto p_new_condition = rSlipBedModelPart.CreateNewCondition(
+                    "WallCondition3D3N", 
+                    new_cond_id, 
+                    face_sorted, 
+                    rSlipBedModelPart.pGetProperties(0));
+                
+                p_new_condition->Set(WALL, true);
+                ++new_conditions_created;
+            }
+        }
+    }
+
+    return new_conditions_created;
+
+    KRATOS_CATCH("")
+}
+
+int HydraulicFluidAuxiliaryUtilities::ProcessElementDeposition(
+    Element& rFluidElement,
+    ModelPart& rSlipBedModelPart,
+    const Condition& rInterfaceCondition,
+    ModelPart& rComputingModelPart)
+{
+    KRATOS_TRY
+
+    // Deactivate the fluid element
+    rFluidElement.Set(FLUID, false);
+
+    // Get all faces of the element (assuming tetrahedra)
+    const auto& r_fluid_geom = rFluidElement.GetGeometry();
+    const SizeType n_nodes = r_fluid_geom.PointsNumber();
+    
+    std::vector<IndexType> node_ids;
+    node_ids.reserve(n_nodes);
+    for (IndexType i = 0; i < n_nodes; ++i) {
+        node_ids.push_back(r_fluid_geom[i].Id());
+    }
+
+    // Define faces for tetrahedra (4 triangular faces)
+    std::vector<std::array<IndexType, 3>> faces;
+    if (n_nodes == 4) { // Tetrahedra
+        faces = {
+            {node_ids[0], node_ids[1], node_ids[2]},
+            {node_ids[0], node_ids[1], node_ids[3]},
+            {node_ids[0], node_ids[2], node_ids[3]},
+            {node_ids[1], node_ids[2], node_ids[3]}
+        };
+    }
+
+    // Find which face was the original interface (to skip it)
+    std::vector<IndexType> original_interface_face;
+    bool interface_face_found = false;
+
+    // Get all existing conditions to find the matching interface face
+    for (const auto& r_condition : rSlipBedModelPart.Conditions()) {
+        const auto& r_cond_geom = r_condition.GetGeometry();
+        std::vector<IndexType> cond_node_ids;
+        cond_node_ids.reserve(r_cond_geom.PointsNumber());
+        
+        for (IndexType i = 0; i < r_cond_geom.PointsNumber(); ++i) {
+            cond_node_ids.push_back(r_cond_geom[i].Id());
+        }
+        std::sort(cond_node_ids.begin(), cond_node_ids.end());
+
+        // Check if this condition matches any face of the fluid element
+        for (const auto& face : faces) {
+            std::vector<IndexType> face_sorted(face.begin(), face.end());
+            std::sort(face_sorted.begin(), face_sorted.end());
+            
+            if (face_sorted == cond_node_ids) {
+                original_interface_face = face_sorted;
+                interface_face_found = true;
+                break;
+            }
+        }
+        
+        if (interface_face_found) {
+            break;
+        }
+    }
+
+    // Add other faces as new conditions to slip bed model part
+    int new_conditions_created = 0;
+    
+    for (const auto& face : faces) {
+        std::vector<IndexType> face_sorted(face.begin(), face.end());
+        std::sort(face_sorted.begin(), face_sorted.end());
+        
+        // Skip the original interface face
+        if (interface_face_found && face_sorted == original_interface_face) {
+            continue;
+        }
+
+        // Check if condition already exists
+        bool condition_exists = false;
+        for (const auto& r_condition : rSlipBedModelPart.Conditions()) {
+            const auto& r_cond_geom = r_condition.GetGeometry();
+            std::vector<IndexType> existing_nodes;
+            existing_nodes.reserve(r_cond_geom.PointsNumber());
+            
+            for (IndexType i = 0; i < r_cond_geom.PointsNumber(); ++i) {
+                existing_nodes.push_back(r_cond_geom[i].Id());
+            }
+            std::sort(existing_nodes.begin(), existing_nodes.end());
+            
+            if (existing_nodes == face_sorted) {
+                condition_exists = true;
+                break;
+            }
+        }
+
+        if (!condition_exists) {
+            // Find new condition ID - check all model parts to avoid conflicts
+            IndexType max_cond_id = 0;
+            
+            // Check slip bed model part conditions
+            for (const auto& r_condition : rSlipBedModelPart.Conditions()) {
+                max_cond_id = std::max(max_cond_id, r_condition.Id());
+            }
+            
+            // Check computing model part conditions
+            for (const auto& r_condition : rComputingModelPart.Conditions()) {
+                max_cond_id = std::max(max_cond_id, r_condition.Id());
+            }
+            
+            const IndexType new_cond_id = max_cond_id + 1;
+
+            // Add nodes to slip bed model part if not present
+            for (IndexType node_id : face_sorted) {
+                if (!rSlipBedModelPart.HasNode(node_id)) {
+                    // Get original node from computing model part
+                    auto& r_original_node = rComputingModelPart.GetNode(node_id);
+                    
+                    // **CRITICAL FIX: Ensure DISTANCE is preserved when adding node**
+                    double original_distance = r_original_node.FastGetSolutionStepValue(DISTANCE);
+                    
+                    // Add the existing node to slip bed model part
+                    rSlipBedModelPart.AddNode(&r_original_node);
+                    
+                    // **ENSURE DISTANCE VALUE IS MAINTAINED**
+                    r_original_node.FastGetSolutionStepValue(DISTANCE) = original_distance;
+                    
+                    // Set SLIP flag for the node
+                    //r_original_node.Set(SLIP, true);
+                } else {
+                    // Node already exists, ensure DISTANCE is not zero
+                    auto& r_existing_node = rSlipBedModelPart.GetNode(node_id);
+                    
+                    // **FIX: Check and correct zero DISTANCE values**
+                    double current_distance = r_existing_node.FastGetSolutionStepValue(DISTANCE);
+                    if (std::abs(current_distance) < 1e-12) { // Essentially zero
+                        // Get the original distance from computing model part
+                        auto& r_original_node = rComputingModelPart.GetNode(node_id);
+                        double original_distance = r_original_node.FastGetSolutionStepValue(DISTANCE);
+                        r_existing_node.FastGetSolutionStepValue(DISTANCE) = original_distance;
+                    }
+                    
+                    // Set SLIP flag
+                    //r_existing_node.Set(SLIP, true);
+                }
+            }
+
+            // Create new condition
+            auto p_new_condition = rSlipBedModelPart.CreateNewCondition(
+                "WallCondition3D3N", 
+                new_cond_id, 
+                face_sorted, 
+                rSlipBedModelPart.pGetProperties(0)
+            );
+            
+            // Set WALL flag for the new condition
+            p_new_condition->Set(WALL, true);
+            ++new_conditions_created;
+            if (rFluidElement.Id() == 13527) {
+                KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") << "Created new condition with ID: " << new_cond_id << " for element ID: " << rFluidElement.Id() << std::endl;
+                KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") << "Total conditions in slip bed model part: " << rSlipBedModelPart.NumberOfConditions() << std::endl;
+            }
+        }
+    }
+
+    return new_conditions_created;
+
+    KRATOS_CATCH("")
 }
 
 } // namespace Kratos

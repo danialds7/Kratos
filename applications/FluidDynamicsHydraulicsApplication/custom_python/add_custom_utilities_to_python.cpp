@@ -33,6 +33,9 @@ void AddCustomUtilitiesToPython(pybind11::module& m)
         .def_static("FreeInlet", [](ModelPart &rModelPart){return HydraulicFluidAuxiliaryUtilities::FreeInlet(rModelPart);})
         .def_static("CalculateArtificialViscosity", [](ModelPart &rModelPart, double artificial_limiter_coefficient){return HydraulicFluidAuxiliaryUtilities::CalculateArtificialViscosity(rModelPart, artificial_limiter_coefficient);})
         .def_static("FindElementsNeighbouringConditions", [](ModelPart &rModelPart, const Flags &rConditionFlag){ HydraulicFluidAuxiliaryUtilities::FindElementsNeighbouringConditions(rModelPart, rConditionFlag); })
+        .def_static("CalculateErosionRate", [](const Element& rFluidElement, const Condition& rInterfaceCondition, const double D50, const double SedimentDensity){return HydraulicFluidAuxiliaryUtilities::CalculateErosionRate(rFluidElement, rInterfaceCondition, D50, SedimentDensity);})
+        .def_static("ProcessElementErosion", [](Element& rSolidElement, ModelPart& rSlipBedModelPart, const Condition& rInterfaceCondition, ModelPart& rComputingModelPart, const Element* pConnectedFluidElement){return HydraulicFluidAuxiliaryUtilities::ProcessElementErosion(rSolidElement, rSlipBedModelPart, rInterfaceCondition, rComputingModelPart, pConnectedFluidElement);})
+        .def_static("ProcessElementDeposition", [](Element& rFluidElement, ModelPart& rSlipBedModelPart, const Condition& rInterfaceCondition, ModelPart& rComputingModelPart){return HydraulicFluidAuxiliaryUtilities::ProcessElementDeposition(rFluidElement, rSlipBedModelPart, rInterfaceCondition, rComputingModelPart);})
         .def_static("SetInletFreeSurface", [](ModelPart &rModelPart, const Flags &rSkinFlag, const Variable<double> &rDistanceVariable){return HydraulicFluidAuxiliaryUtilities::SetInletFreeSurface(rModelPart, rSkinFlag, rDistanceVariable);});
 }
 
