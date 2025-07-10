@@ -11,7 +11,7 @@
 //
 
 // System includes
-
+#include <algorithm>
 
 // External includes
 
@@ -442,13 +442,49 @@ double HydraulicFluidAuxiliaryUtilities::CalculateErosionRate(
     const double tau_star_c = 0.22 * rep_power + 0.06 * std::pow(10.0, -7.7 * rep_power);
     
     // Get interface normal vector
-    array_1d<double, 3> interface_normal;
     const auto& r_interface_geom = rInterfaceCondition.GetGeometry();
-    r_interface_geom.UnitNormal(interface_normal);
+    array_1d<double, 3> interface_normal;
+    
+    // Calculate normal vector manually for 3D triangle
+    if (r_interface_geom.PointsNumber() == 3) {
+        const auto& p1 = r_interface_geom[0];
+        const auto& p2 = r_interface_geom[1];
+        const auto& p3 = r_interface_geom[2];
+        
+        // Calculate vectors
+        array_1d<double, 3> v1, v2;
+        v1[0] = p2.X() - p1.X();
+        v1[1] = p2.Y() - p1.Y();
+        v1[2] = p2.Z() - p1.Z();
+        
+        v2[0] = p3.X() - p1.X();
+        v2[1] = p3.Y() - p1.Y();
+        v2[2] = p3.Z() - p1.Z();
+        
+        // Cross product
+        interface_normal[0] = v1[1] * v2[2] - v1[2] * v2[1];
+        interface_normal[1] = v1[2] * v2[0] - v1[0] * v2[2];
+        interface_normal[2] = v1[0] * v2[1] - v1[1] * v2[0];
+        
+        // Normalize
+        const double normal_mag = norm_2(interface_normal);
+        if (normal_mag > 1e-12) {
+            interface_normal /= normal_mag;
+        } else {
+            interface_normal[0] = 0.0;
+            interface_normal[1] = 0.0;
+            interface_normal[2] = 1.0; // Default to Z direction
+        }
+    } else {
+        interface_normal[0] = 0.0;
+        interface_normal[1] = 0.0;
+        interface_normal[2] = 1.0; // Default
+    }
     
     // Calculate velocity and distance at interface
     double vt_total = 0.0; // Tangential velocity component
     double hk_total = 0.0; // Normal distance from interface
+    double vn_total = 0.0; // Normal velocity component
     
     for (IndexType i_node = 0; i_node < n_nodes; ++i_node) {
         const auto& r_node = r_fluid_geom[i_node];
@@ -466,6 +502,10 @@ double HydraulicFluidAuxiliaryUtilities::CalculateErosionRate(
         const double v_tangential = std::sqrt(std::max(0.0, velocity_mag_sq - v_normal_mag * v_normal_mag));
         vt_total += v_tangential;
         
+        if (v_normal_mag < 0) {
+            vn_total += -v_normal_mag;
+        }
+        
         // Approximate distance from interface (simplified)
         // In practice, this should be the actual distance from node to interface
         hk_total += D50 * 10.0; // Approximation: 10 particle diameters
@@ -474,11 +514,7 @@ double HydraulicFluidAuxiliaryUtilities::CalculateErosionRate(
     // Average values
     const double vt = vt_total / static_cast<double>(n_nodes);
     const double hk = hk_total / static_cast<double>(n_nodes);
-    
-    // Check for zero velocity or distance
-    if (vt <= 1e-12 || hk <= 1e-12) {
-        return 0.0; // No erosion if no velocity or distance
-    }
+    const double vn = vn_total / static_cast<double>(n_nodes);
     
     // Calculate friction velocity using logarithmic wall law (Eq. 13)
     // u/u* = (1/0.41) * ln(u* * y / nu) + 5.5
@@ -514,19 +550,32 @@ double HydraulicFluidAuxiliaryUtilities::CalculateErosionRate(
     // Calculate dimensionless shear stress (Shields parameter, Eq. 17)
     const double tau_star_s = tau_w / (rho * R * g * D50);
     
+    const double excess_ratio = tau_star_s / tau_star_c - 1.0;
+    
+    // Initialize erosion components
+    double E_t = 0.0;
+    
     // Check if erosion threshold is exceeded
-    if (tau_star_s <= tau_star_c) {
-        return 0.0; // No erosion below threshold
+    if (tau_star_s > tau_star_c) {
+        // Calculate dimensionless entrainment rate (Eq. 18 - van Rijn)
+        const double E_star = 0.015 * (D50 / hk) * 
+                             std::pow(excess_ratio, 1.5) * 
+                             std::pow(Rep, -0.2) * 10.0;
+        
+        // Dimensionalize entrainment rate (Eq. 19)
+        E_t = E_star * std::sqrt(g * R * D50); // m/s
     }
     
-    // Calculate dimensionless entrainment rate (Eq. 18 - van Rijn)
-    const double excess_ratio = tau_star_s / tau_star_c - 1.0;
-    const double E_star = 0.015 * (D50 / hk) * 
-                         std::pow(excess_ratio, 1.5) * 
-                         std::pow(Rep, -0.2);
+    // Calculate normal velocity erosion component
+    double E_n = 0.0;
+    if (vn > 1e-12) {
+        // Calibratable coefficient for impact erosion
+        const double C_impact = 1.5;
+        // Erosion rate related to the kinetic energy of the normal flow component
+        E_n = C_impact * 0.5 * rho * std::pow(vn, 3) / SedimentDensity;
+    }
     
-    // Dimensionalize entrainment rate (Eq. 19)
-    const double E = E_star * std::sqrt(g * R * D50); // m/s
+    const double E = E_t + E_n; // Total erosion rate (m/s)
     
     // Calculate interface area
     const double interface_area = r_interface_geom.Area();
@@ -551,101 +600,41 @@ int HydraulicFluidAuxiliaryUtilities::ProcessElementErosion(
     // Activate the solid element (convert to fluid)
     rSolidElement.Set(FLUID, true);
 
-    // Get interface condition geometry and nodes
-    const auto& r_interface_geom = rInterfaceCondition.GetGeometry();
-    const SizeType n_interface_nodes = r_interface_geom.PointsNumber();
-
-    // Calculate average Z coordinate and distance of interface
-    double interface_z_avg = 0.0;
-    double interface_distance_avg = 0.0;
-    
-    for (IndexType i = 0; i < n_interface_nodes; ++i) {
-        const auto& r_node = r_interface_geom[i];
-        interface_z_avg += r_node.Z();
-        interface_distance_avg += r_node.FastGetSolutionStepValue(DISTANCE);
-    }
-    interface_z_avg /= static_cast<double>(n_interface_nodes);
-    interface_distance_avg /= static_cast<double>(n_interface_nodes);
-
-    // Calculate distance gradient from interface nodes
-    double distance_gradient = 1.0; // Default gradient
-    if (n_interface_nodes >= 2) {
-        const auto& r_node1 = r_interface_geom[0];
-        const auto& r_node2 = r_interface_geom[1];
-        const double z_diff = r_node2.Z() - r_node1.Z();
-        
-        if (std::abs(z_diff) > 1e-10) {
-            const double dist_diff = r_node2.FastGetSolutionStepValue(DISTANCE) - 
-                                   r_node1.FastGetSolutionStepValue(DISTANCE);
-            distance_gradient = dist_diff / z_diff;
-        }
-    }
-
-    // Calculate average values from connected fluid element
-    array_1d<double, 3> avg_velocity = ZeroVector(3);
-    double avg_pressure = 0.0;
-    double avg_c_susp = 0.0;
-
-    if (pConnectedFluidElement != nullptr) {
-        const auto& r_fluid_geom = pConnectedFluidElement->GetGeometry();
-        const SizeType n_fluid_nodes = r_fluid_geom.PointsNumber();
-
-        // Calculate averages from fluid element nodes
-        for (IndexType i_node = 0; i_node < n_fluid_nodes; ++i_node) {
-            const auto& r_node = r_fluid_geom[i_node];
-            const array_1d<double, 3>& velocity = r_node.FastGetSolutionStepValue(VELOCITY);
-            
-            avg_velocity[0] += velocity[0];
-            avg_velocity[1] += velocity[1];
-            avg_velocity[2] += velocity[2];
-            avg_pressure += r_node.FastGetSolutionStepValue(PRESSURE);
-            avg_c_susp += r_node.FastGetSolutionStepValue(C_SUSP);
-        }
-
-        // Calculate final averages
-        const double inv_n_nodes = 1.0 / static_cast<double>(n_fluid_nodes);
-        avg_velocity *= inv_n_nodes;
-        avg_pressure *= inv_n_nodes;
-        avg_c_susp *= inv_n_nodes;
-    }
-    // If no connected fluid element, avg_velocity, avg_pressure, avg_c_susp remain zero
-
-    // Process solid element nodes: free DOFs and assign values
-    auto& r_solid_geom = rSolidElement.GetGeometry(); // Remove const
+    // Remove fixed DOFs from its nodes (unfix for fluid behavior)
+    auto& r_solid_geom = rSolidElement.GetGeometry();
     const SizeType n_solid_nodes = r_solid_geom.PointsNumber();
 
     for (IndexType i_node = 0; i_node < n_solid_nodes; ++i_node) {
-        auto& r_node = r_solid_geom[i_node]; // Get non-const reference
-
-        // Free DOFs
-        r_node.Free(VELOCITY_X);
-        r_node.Free(VELOCITY_Y);
-        r_node.Free(VELOCITY_Z);
-        r_node.Free(PRESSURE);
-        r_node.Free(C_SUSP);
-        r_node.Free(DISTANCE);
-
-        // Assign averaged values (get non-const references)
-        noalias(r_node.FastGetSolutionStepValue(VELOCITY)) = avg_velocity;
-        r_node.FastGetSolutionStepValue(PRESSURE) = avg_pressure;
-        r_node.FastGetSolutionStepValue(C_SUSP) = avg_c_susp;
-
-        // Calculate distance based on vertical distance from interface
-        const double z_diff = r_node.Z() - interface_z_avg;
-        const double calculated_distance = interface_distance_avg + distance_gradient * z_diff;
+        auto& r_node = r_solid_geom[i_node];
         
-        r_node.FastGetSolutionStepValue(DISTANCE) = calculated_distance;
-        r_node.FastGetSolutionStepValue(DISTANCE, 1) = calculated_distance; // Previous time step
+        if (r_node.IsFixed(VELOCITY_X)) {
+            r_node.Free(VELOCITY_X);
+        }
+        if (r_node.IsFixed(VELOCITY_Y)) {
+            r_node.Free(VELOCITY_Y);
+        }
+        if (r_node.IsFixed(VELOCITY_Z)) {
+            r_node.Free(VELOCITY_Z);
+        }
+        if (r_node.IsFixed(PRESSURE)) {
+            r_node.Free(PRESSURE);
+        }
+        if (r_node.IsFixed(C_SUSP)) {
+            r_node.Free(C_SUSP);
+        }
     }
 
-    // Remove flags from interface condition nodes
+    // Remove the original interface condition and its flags
     auto& r_interface_geom_non_const = const_cast<Condition&>(rInterfaceCondition).GetGeometry();
+    const SizeType n_interface_nodes = r_interface_geom_non_const.PointsNumber();
+    
     for (IndexType i = 0; i < n_interface_nodes; ++i) {
         auto& r_node = r_interface_geom_non_const[i];
         r_node.Set(SLIP, false);
     }
+    const_cast<Condition&>(rInterfaceCondition).Set(WALL, false);
 
-    // Get all faces of the eroded solid element (assuming tetrahedra)
+    // Get all faces of the eroded solid element
     std::vector<IndexType> node_ids;
     node_ids.reserve(n_solid_nodes);
     for (IndexType i = 0; i < n_solid_nodes; ++i) {
@@ -663,15 +652,15 @@ int HydraulicFluidAuxiliaryUtilities::ProcessElementErosion(
         };
     }
 
-    // Get original interface face nodes (sorted)
-    std::vector<IndexType> original_interface_nodes;
-    original_interface_nodes.reserve(n_interface_nodes);
+    // Find which face was the original interface (to skip it)
+    std::vector<IndexType> original_interface_face;
+    original_interface_face.reserve(n_interface_nodes);
     for (IndexType i = 0; i < n_interface_nodes; ++i) {
-        original_interface_nodes.push_back(r_interface_geom[i].Id());
+        original_interface_face.push_back(r_interface_geom_non_const[i].Id());
     }
-    std::sort(original_interface_nodes.begin(), original_interface_nodes.end());
+    std::sort(original_interface_face.begin(), original_interface_face.end());
 
-    // Build face-to-elements mapping for efficient neighbor checking
+    // Build a mapping of faces to elements for efficient neighbor checking
     std::unordered_map<std::vector<IndexType>, std::vector<Element::Pointer>, VectorHasher> face_to_elements;
     
     for (auto& r_element : rComputingModelPart.Elements()) {
@@ -709,7 +698,7 @@ int HydraulicFluidAuxiliaryUtilities::ProcessElementErosion(
         std::sort(face_sorted.begin(), face_sorted.end());
         
         // Skip the original interface face
-        if (face_sorted == original_interface_nodes) {
+        if (face_sorted == original_interface_face) {
             continue;
         }
         
@@ -719,12 +708,19 @@ int HydraulicFluidAuxiliaryUtilities::ProcessElementErosion(
             continue; // Face not found in mapping
         }
         
-        const auto& neighboring_elements = it->second;
-        bool has_solid_neighbor = false;
+        auto neighboring_elements = it->second; // Copy the vector
         
+        // Remove the current element from neighbors
+        auto new_end = std::remove_if(neighboring_elements.begin(), neighboring_elements.end(),
+            [&rSolidElement](const Element::Pointer& p_elem) {
+                return p_elem->Id() == rSolidElement.Id();
+            });
+        neighboring_elements.erase(new_end, neighboring_elements.end());
+        
+        // Check if any neighboring element is still solid (inactive or not fluid)
+        bool has_solid_neighbor = false;
         for (const auto& p_neighbor : neighboring_elements) {
-            if (p_neighbor->Id() != rSolidElement.Id() && 
-                (!p_neighbor->Is(FLUID) || !p_neighbor->Is(ACTIVE))) {
+            if (!p_neighbor->Is(FLUID) || !p_neighbor->Is(ACTIVE)) {
                 has_solid_neighbor = true;
                 break;
             }
@@ -751,15 +747,18 @@ int HydraulicFluidAuxiliaryUtilities::ProcessElementErosion(
             
             if (!condition_exists) {
                 // Find new condition ID
-                IndexType max_cond_id = 0;
+                std::unordered_set<IndexType> all_cond_ids;
                 for (const auto& r_condition : rSlipBedModelPart.Conditions()) {
-                    max_cond_id = std::max(max_cond_id, r_condition.Id());
+                    all_cond_ids.insert(r_condition.Id());
                 }
                 for (const auto& r_condition : rComputingModelPart.Conditions()) {
-                    max_cond_id = std::max(max_cond_id, r_condition.Id());
+                    all_cond_ids.insert(r_condition.Id());
                 }
                 
-                const IndexType new_cond_id = max_cond_id + 1;
+                IndexType new_cond_id = all_cond_ids.empty() ? 1 : *std::max_element(all_cond_ids.begin(), all_cond_ids.end()) + 1;
+                while (all_cond_ids.find(new_cond_id) != all_cond_ids.end()) {
+                    ++new_cond_id;
+                }
                 
                 // Add nodes to slip bed model part if not present
                 for (IndexType node_id : face_sorted) {
