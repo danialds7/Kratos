@@ -187,6 +187,24 @@ public:
         const Condition& rInterfaceCondition,
         ModelPart& rComputingModelPart);
 
+    /**
+     * @brief Connect newly generated conditions to remaining fluid and solid elements
+     * and remove redundant conditions between fluid elements
+     * @param rFluidModelPart The fluid model part
+     * @param rSlipBedModelPart The slip bed model part containing interface conditions
+     * @param rSolidElementsSet Set of solid element IDs for tracking
+     * @param rInterfaceConditionToFluidElement Map from condition ID to fluid element
+     * @param rInterfaceConditionToSolidElement Map from condition ID to solid element
+     * @param rAccumulatedVolume Map from condition ID to accumulated volume
+     */
+    static void ConnectNewConditions(
+        ModelPart& rFluidModelPart,
+        ModelPart& rSlipBedModelPart,
+        std::unordered_set<IndexType>& rSolidElementsSet,
+        std::unordered_map<IndexType, Element::Pointer>& rInterfaceConditionToFluidElement,
+        std::unordered_map<IndexType, Element::Pointer>& rInterfaceConditionToSolidElement,
+        std::unordered_map<IndexType, double>& rAccumulatedVolume);
+
     ///@}
 
 private :

@@ -954,4 +954,329 @@ int HydraulicFluidAuxiliaryUtilities::ProcessElementDeposition(
     KRATOS_CATCH("")
 }
 
-} // namespace Kratos
+void HydraulicFluidAuxiliaryUtilities::ConnectNewConditions(
+    ModelPart& rFluidModelPart,
+    ModelPart& rSlipBedModelPart,
+    std::unordered_set<IndexType>& rSolidElementsSet,
+    std::unordered_map<IndexType, Element::Pointer>& rInterfaceConditionToFluidElement,
+    std::unordered_map<IndexType, Element::Pointer>& rInterfaceConditionToSolidElement,
+    std::unordered_map<IndexType, double>& rAccumulatedVolume)
+{
+    KRATOS_TRY
+
+    KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") << "Connecting newly generated conditions and removing redundant ones..." << std::endl;
+    
+    // Get all current conditions
+    std::vector<Condition::Pointer> all_conditions;
+    for (auto& r_condition : rSlipBedModelPart.Conditions()) {
+        all_conditions.push_back(&r_condition);
+    }
+    
+    // **NEW FUNCTIONALITY: Remove redundant conditions between fluid elements**
+    KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") << "--- Checking for redundant conditions between fluid elements ---" << std::endl;
+    std::vector<Condition::Pointer> redundant_conditions;
+    
+    // Build comprehensive element mappings for redundancy check
+    std::map<std::vector<IndexType>, Element::Pointer> fluid_elements_by_nodes;
+    std::map<std::vector<IndexType>, Element::Pointer> solid_elements_by_nodes;
+    
+    for (auto& r_element : rFluidModelPart.Elements()) {
+        std::vector<IndexType> elem_node_ids;
+        for (const auto& r_node : r_element.GetGeometry()) {
+            elem_node_ids.push_back(r_node.Id());
+        }
+        std::sort(elem_node_ids.begin(), elem_node_ids.end());
+        
+        if (r_element.Is(FLUID) && rSolidElementsSet.find(r_element.Id()) == rSolidElementsSet.end()) {
+            // Active fluid element
+            fluid_elements_by_nodes[elem_node_ids] = &r_element;
+        } else {
+            // Solid element (including deposited ones)
+            solid_elements_by_nodes[elem_node_ids] = &r_element;
+        }
+    }
+    
+    // Check each condition for redundancy
+    for (auto& p_condition : all_conditions) {
+        const IndexType condition_id = p_condition->Id();
+        std::vector<IndexType> cond_node_ids;
+        for (const auto& r_node : p_condition->GetGeometry()) {
+            cond_node_ids.push_back(r_node.Id());
+        }
+        std::sort(cond_node_ids.begin(), cond_node_ids.end());
+        
+        // Find all elements that contain this condition's nodes
+        std::vector<Element::Pointer> connected_fluid_elements;
+        std::vector<Element::Pointer> connected_solid_elements;
+        
+        for (const auto& pair : fluid_elements_by_nodes) {
+            const std::vector<IndexType>& elem_nodes = pair.first;
+            Element::Pointer p_element = pair.second;
+            
+            // Check if condition nodes are subset of element nodes
+            bool is_subset = true;
+            for (const auto& node_id : cond_node_ids) {
+                if (std::find(elem_nodes.begin(), elem_nodes.end(), node_id) == elem_nodes.end()) {
+                    is_subset = false;
+                    break;
+                }
+            }
+            if (is_subset) {
+                connected_fluid_elements.push_back(p_element);
+            }
+        }
+        
+        for (const auto& pair : solid_elements_by_nodes) {
+            const std::vector<IndexType>& elem_nodes = pair.first;
+            Element::Pointer p_element = pair.second;
+            
+            // Check if condition nodes are subset of element nodes
+            bool is_subset = true;
+            for (const auto& node_id : cond_node_ids) {
+                if (std::find(elem_nodes.begin(), elem_nodes.end(), node_id) == elem_nodes.end()) {
+                    is_subset = false;
+                    break;
+                }
+            }
+            if (is_subset) {
+                connected_solid_elements.push_back(p_element);
+            }
+        }
+        
+        // **REDUNDANCY CHECK**: If condition is shared between TWO FLUID elements and NO solid elements
+        if (connected_fluid_elements.size() == 2 && connected_solid_elements.size() == 0) {
+            redundant_conditions.push_back(p_condition);
+            KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") 
+                << "REDUNDANT condition found: " << condition_id 
+                << " - shared between fluid elements " << connected_fluid_elements[0]->Id() 
+                << " and " << connected_fluid_elements[1]->Id() << std::endl;
+        }
+        // **ADDITIONAL CHECK**: If condition is shared between MORE than 2 fluid elements
+        else if (connected_fluid_elements.size() > 2 && connected_solid_elements.size() == 0) {
+            redundant_conditions.push_back(p_condition);
+            std::string fluid_elem_ids = "";
+            for (const auto& p_elem : connected_fluid_elements) {
+                fluid_elem_ids += std::to_string(p_elem->Id()) + " ";
+            }
+            KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") 
+                << "REDUNDANT condition found: " << condition_id 
+                << " - shared between multiple fluid elements " << fluid_elem_ids << std::endl;
+        }
+    }
+    
+    // **REMOVE REDUNDANT CONDITIONS**
+    if (!redundant_conditions.empty()) {
+        KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") 
+            << "--- Removing " << redundant_conditions.size() << " redundant conditions ---" << std::endl;
+        
+        for (std::size_t i = 0; i < redundant_conditions.size(); ++i) {
+            auto p_condition = redundant_conditions[i];
+            const IndexType condition_id = p_condition->Id();
+            
+            KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") 
+                << "Removing redundant condition " << (i+1) << "/" << redundant_conditions.size() 
+                << ": " << condition_id << std::endl;
+            
+            // Remove from connectivity mappings if present
+            auto it_fluid = rInterfaceConditionToFluidElement.find(condition_id);
+            if (it_fluid != rInterfaceConditionToFluidElement.end()) {
+                rInterfaceConditionToFluidElement.erase(it_fluid);
+            }
+            
+            auto it_solid = rInterfaceConditionToSolidElement.find(condition_id);
+            if (it_solid != rInterfaceConditionToSolidElement.end()) {
+                rInterfaceConditionToSolidElement.erase(it_solid);
+            }
+            
+            auto it_volume = rAccumulatedVolume.find(condition_id);
+            if (it_volume != rAccumulatedVolume.end()) {
+                rAccumulatedVolume.erase(it_volume);
+            }
+            
+            // Remove condition from slip bed model part
+            rSlipBedModelPart.RemoveCondition(condition_id);
+            
+            KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") 
+                << "  -> Successfully removed redundant condition " << condition_id << std::endl;
+        }
+        
+        // Update the conditions list after removal
+        all_conditions.clear();
+        for (auto& r_condition : rSlipBedModelPart.Conditions()) {
+            all_conditions.push_back(&r_condition);
+        }
+        
+        KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") 
+            << "Conditions remaining after redundancy removal: " << all_conditions.size() << std::endl;
+    } else {
+        KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") << "No redundant conditions found" << std::endl;
+    }
+    
+    // **CONTINUE WITH ORIGINAL FUNCTIONALITY**: Connect unconnected conditions
+    KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") << "--- Connecting remaining unconnected conditions ---" << std::endl;
+    
+    // Track conditions that need connectivity
+    std::vector<Condition::Pointer> unconnected_conditions;
+    
+    for (auto& p_condition : all_conditions) {
+        const IndexType condition_id = p_condition->Id();
+        
+        // Check if this condition is already connected
+        bool has_fluid_connection = rInterfaceConditionToFluidElement.find(condition_id) != rInterfaceConditionToFluidElement.end();
+        bool has_solid_connection = rInterfaceConditionToSolidElement.find(condition_id) != rInterfaceConditionToSolidElement.end();
+        
+        if (!has_fluid_connection && !has_solid_connection) {
+            unconnected_conditions.push_back(p_condition);
+            KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") << "Found unconnected condition: " << condition_id << std::endl;
+        }
+    }
+    
+    if (unconnected_conditions.empty()) {
+        KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") << "All remaining conditions are already connected" << std::endl;
+        return;
+    }
+    
+    // **HANDLE SHARED CONNECTIONS**: Track multiple conditions per element
+    std::unordered_map<IndexType, std::vector<IndexType>> fluid_element_to_conditions;
+    std::unordered_map<IndexType, std::vector<IndexType>> solid_element_to_conditions;
+    
+    // Connect unconnected conditions
+    for (auto& p_condition : unconnected_conditions) {
+        std::vector<IndexType> cond_node_ids;
+        for (const auto& r_node : p_condition->GetGeometry()) {
+            cond_node_ids.push_back(r_node.Id());
+        }
+        std::sort(cond_node_ids.begin(), cond_node_ids.end());
+        const IndexType condition_id = p_condition->Id();
+        
+        // Find connected fluid elements
+        std::vector<Element::Pointer> connected_fluid_elements;
+        for (const auto& pair : fluid_elements_by_nodes) {
+            const std::vector<IndexType>& elem_nodes = pair.first;
+            Element::Pointer p_element = pair.second;
+            
+            // Check if condition nodes are subset of element nodes
+            bool is_subset = true;
+            for (const auto& node_id : cond_node_ids) {
+                if (std::find(elem_nodes.begin(), elem_nodes.end(), node_id) == elem_nodes.end()) {
+                    is_subset = false;
+                    break;
+                }
+            }
+            if (is_subset) {
+                connected_fluid_elements.push_back(p_element);
+            }
+        }
+        
+        // Find connected solid elements
+        std::vector<Element::Pointer> connected_solid_elements;
+        for (const auto& pair : solid_elements_by_nodes) {
+            const std::vector<IndexType>& elem_nodes = pair.first;
+            Element::Pointer p_element = pair.second;
+            
+            // Check if condition nodes are subset of element nodes
+            bool is_subset = true;
+            for (const auto& node_id : cond_node_ids) {
+                if (std::find(elem_nodes.begin(), elem_nodes.end(), node_id) == elem_nodes.end()) {
+                    is_subset = false;
+                    break;
+                }
+            }
+            if (is_subset) {
+                connected_solid_elements.push_back(p_element);
+            }
+        }
+        
+        // **VALID INTERFACE CHECK**: Only connect if there's at least one solid element
+        if (connected_solid_elements.empty()) {
+            KRATOS_WARNING("HydraulicFluidAuxiliaryUtilities") 
+                << "Condition " << condition_id << " has no solid element connection - may be invalid interface" << std::endl;
+            continue;
+        }
+        
+        // **HANDLE MULTIPLE CONNECTIONS**: Select best connection
+        if (!connected_fluid_elements.empty()) {
+            Element::Pointer selected_fluid_elem;
+            if (connected_fluid_elements.size() == 1) {
+                selected_fluid_elem = connected_fluid_elements[0];
+            } else {
+                // Multiple fluid elements - select one with highest C_SUSP
+                double max_c_susp = -1.0;
+                selected_fluid_elem = connected_fluid_elements[0];
+                for (auto& p_elem : connected_fluid_elements) {
+                    double avg_c_susp = 0.0;
+                    const auto& r_geom = p_elem->GetGeometry();
+                    for (IndexType i = 0; i < r_geom.PointsNumber(); ++i) {
+                        avg_c_susp += r_geom[i].FastGetSolutionStepValue(C_SUSP);
+                    }
+                    avg_c_susp /= static_cast<double>(r_geom.PointsNumber());
+                    
+                    if (avg_c_susp > max_c_susp) {
+                        max_c_susp = avg_c_susp;
+                        selected_fluid_elem = p_elem;
+                    }
+                }
+                
+                KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") 
+                    << "Condition " << condition_id << " connected to multiple fluid elements, selected element " 
+                    << selected_fluid_elem->Id() << std::endl;
+            }
+            
+            // Connect condition to selected fluid element
+            rInterfaceConditionToFluidElement[condition_id] = selected_fluid_elem;
+            
+            // Track shared connections
+            fluid_element_to_conditions[selected_fluid_elem->Id()].push_back(condition_id);
+        }
+        
+        // Connect to solid elements (usually one per condition)
+        if (!connected_solid_elements.empty()) {
+            Element::Pointer selected_solid_elem = connected_solid_elements[0]; // Usually only one
+            rInterfaceConditionToSolidElement[condition_id] = selected_solid_elem;
+            
+            // Track shared connections
+            solid_element_to_conditions[selected_solid_elem->Id()].push_back(condition_id);
+        }
+        
+        if (connected_fluid_elements.empty() && connected_solid_elements.empty()) {
+            KRATOS_WARNING("HydraulicFluidAuxiliaryUtilities") 
+                << "Condition " << condition_id << " could not be connected to any element" << std::endl;
+        }
+    }
+    
+    // **REPORT SHARED CONNECTIONS**
+    KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") << "--- Shared Element Connections ---" << std::endl;
+    for (const auto& pair : fluid_element_to_conditions) {
+        if (pair.second.size() > 1) {
+            std::string condition_ids = "";
+            for (const auto& cond_id : pair.second) {
+                condition_ids += std::to_string(cond_id) + " ";
+            }
+            KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") 
+                << "Fluid element " << pair.first << " connected to multiple conditions: " << condition_ids << std::endl;
+        }
+    }
+    
+    for (const auto& pair : solid_element_to_conditions) {
+        if (pair.second.size() > 1) {
+            std::string condition_ids = "";
+            for (const auto& cond_id : pair.second) {
+                condition_ids += std::to_string(cond_id) + " ";
+            }
+            KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") 
+                << "Solid element " << pair.first << " connected to multiple conditions: " << condition_ids << std::endl;
+        }
+    }
+    
+    // **FINAL SUMMARY**
+    KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") << "--- Connection Summary ---" << std::endl;
+    KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") << "Redundant conditions removed: " << redundant_conditions.size() << std::endl;
+    KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") << "New conditions connected: " << unconnected_conditions.size() << std::endl;
+    KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") << "Total fluid connections: " << rInterfaceConditionToFluidElement.size() << std::endl;
+    KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") << "Total solid connections: " << rInterfaceConditionToSolidElement.size() << std::endl;
+    KRATOS_INFO("HydraulicFluidAuxiliaryUtilities") << "Final conditions in slip bed: " << rSlipBedModelPart.NumberOfConditions() << std::endl;
+
+    KRATOS_CATCH("")
+}
+
+}
