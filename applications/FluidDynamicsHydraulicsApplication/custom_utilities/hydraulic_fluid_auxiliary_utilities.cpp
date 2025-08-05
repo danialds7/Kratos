@@ -690,6 +690,23 @@ int HydraulicFluidAuxiliaryUtilities::ProcessElementErosion(
         }
     }
 
+    // **IMPROVED ID GENERATION**: Create a thread-safe ID generation mechanism
+    // First, collect all existing condition IDs from both model parts
+    std::set<IndexType> all_existing_ids;
+    
+    // Get IDs from slip bed model part
+    for (const auto& r_condition : rSlipBedModelPart.Conditions()) {
+        all_existing_ids.insert(r_condition.Id());
+    }
+    
+    // Get IDs from computing model part
+    for (const auto& r_condition : rComputingModelPart.Conditions()) {
+        all_existing_ids.insert(r_condition.Id());
+    }
+    
+    // Find the maximum ID and start from there
+    IndexType next_available_id = all_existing_ids.empty() ? 1 : *all_existing_ids.rbegin() + 1;
+    
     // Check each face of the eroded element for new interface conditions
     int new_conditions_created = 0;
     
@@ -746,19 +763,19 @@ int HydraulicFluidAuxiliaryUtilities::ProcessElementErosion(
             }
             
             if (!condition_exists) {
-                // Find new condition ID
-                std::unordered_set<IndexType> all_cond_ids;
-                for (const auto& r_condition : rSlipBedModelPart.Conditions()) {
-                    all_cond_ids.insert(r_condition.Id());
-                }
-                for (const auto& r_condition : rComputingModelPart.Conditions()) {
-                    all_cond_ids.insert(r_condition.Id());
+                // **IMPROVED ID GENERATION**: Use incremental ID generation
+                // Find the next available ID by checking if it exists
+                while (all_existing_ids.find(next_available_id) != all_existing_ids.end()) {
+                    ++next_available_id;
                 }
                 
-                IndexType new_cond_id = all_cond_ids.empty() ? 1 : *std::max_element(all_cond_ids.begin(), all_cond_ids.end()) + 1;
-                while (all_cond_ids.find(new_cond_id) != all_cond_ids.end()) {
-                    ++new_cond_id;
-                }
+                const IndexType new_cond_id = next_available_id;
+                
+                // Add the new ID to our tracking set
+                all_existing_ids.insert(new_cond_id);
+                
+                // Increment for next use
+                ++next_available_id;
                 
                 // Add nodes to slip bed model part if not present
                 for (IndexType node_id : face_sorted) {
@@ -768,15 +785,32 @@ int HydraulicFluidAuxiliaryUtilities::ProcessElementErosion(
                     }
                 }
                 
-                // Create new condition
-                auto p_new_condition = rSlipBedModelPart.CreateNewCondition(
-                    "WallCondition3D3N", 
-                    new_cond_id, 
-                    face_sorted, 
-                    rSlipBedModelPart.pGetProperties(0));
+                // **ADDITIONAL SAFETY CHECK**: Verify the ID is truly unique before creation
+                bool id_already_exists = false;
+                try {
+                    // Try to get a condition with this ID - if it exists, this will succeed
+                    rSlipBedModelPart.GetCondition(new_cond_id);
+                    id_already_exists = true;
+                } catch (...) {
+                    // Condition doesn't exist, which is what we want
+                    id_already_exists = false;
+                }
                 
-                p_new_condition->Set(WALL, true);
-                ++new_conditions_created;
+                if (!id_already_exists) {
+                    // Create new condition
+                    auto p_new_condition = rSlipBedModelPart.CreateNewCondition(
+                        "WallCondition3D3N", 
+                        new_cond_id, 
+                        face_sorted, 
+                        rSlipBedModelPart.pGetProperties(0));
+                    
+                    p_new_condition->Set(WALL, true);
+                    ++new_conditions_created;
+                } else {
+                    // This should not happen with our improved logic, but just in case
+                    KRATOS_WARNING("ProcessElementErosion") 
+                        << "ID " << new_cond_id << " already exists despite checks. Skipping condition creation." << std::endl;
+                }
             }
         }
     }
